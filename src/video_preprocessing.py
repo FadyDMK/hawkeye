@@ -18,6 +18,7 @@ def load_videos(video_path1, video_path2):
 
     return video1, video2
 
+
 def get_frame(video):
     # Read the frame
     ret, frame = video.read()
