@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+output_frames/
 node_modules/
 hawkeye-env/
 
