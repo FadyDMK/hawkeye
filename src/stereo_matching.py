@@ -102,7 +102,7 @@ class StereoMatching:
         # disparity_normalized = cv2.normalize(disparity_cleaned, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
         
 
-        sigma = 1.5
+        sigma = 1.0
         lmbda = 5000.0
         #create WSL filter
         left_matcher = stereo
@@ -161,7 +161,6 @@ class StereoMatching:
     def depth2pointcloud(self, depth, display = False):
         # Parameters
         focal_length = 1386.67
-        baseline = 3.0
         h, w = depth.shape
         z_max = 40.0
 
@@ -201,7 +200,7 @@ class StereoMatching:
  
 
 if __name__ == "__main__":
-    sm = StereoMatching(True)
+    sm = StereoMatching(False)
     disparity = sm.stereo_match_SGBM(display=False)
     depth = sm.disparity2depth(disparity, display=False)
     # sm.depth2pointcloud(depth)

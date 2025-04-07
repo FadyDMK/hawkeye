@@ -6,11 +6,16 @@ output_frames/
 node_modules/
 hawkeye-env/
 
+runs/
+runs/detects/
+plan.txt
+
 # Data
 results/
 data/
 data/volleyball/
-
+dataset/
+*.pt
 
 # C extensions
 *.so
