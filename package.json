@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "copilot": "^0.5.1",
-    "open3d": "^0.2.4"
-  }
-}

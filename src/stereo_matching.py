@@ -4,6 +4,8 @@ import os
 from matplotlib import pyplot as plt
 import open3d as o3d
 
+from volleyball_detection import get_ball_xy
+
 ##Math formulas
 
 ## focal length = 26mm
@@ -22,12 +24,12 @@ import open3d as o3d
 class StereoMatching:
     
 
-    def __init__(self, displayImages):
-        
-        root = os.path.dirname(os.path.abspath(__file__))
-        self.left_img = cv2.imread(os.path.join(root, "..\\output_frames\\left\\left3_0111.jpg"),cv2.IMREAD_GRAYSCALE)
-        self.right_img = cv2.imread(os.path.join(root, "..\\output_frames\\right\\right3_0111.jpg"),cv2.IMREAD_GRAYSCALE)
-
+    def __init__(self,left_img,right_img, displayImages=False):
+        self.left_img = left_img
+        self.right_img = right_img
+        self.X_ball = None
+        self.Y_ball = None
+        self.Z_ball = None
         if displayImages:
             plt.figure()
             plt.subplot(121)
@@ -36,7 +38,45 @@ class StereoMatching:
             plt.imshow(self.right_img, 'gray')
             plt.show()
 
+    def calculate_3d_ball_coordinates(self, disparity):
+        ## GETTING BALL 3D COORDINATES
+        left_gray = cv2.cvtColor(self.left_img, cv2.COLOR_BGR2GRAY)
+        right_gray = cv2.cvtColor(self.right_img, cv2.COLOR_BGR2GRAY)
+        leftImg = self.left_img
 
+        (x_center, y_center) = get_ball_xy(leftImg)
+        if x_center is None or y_center is None:
+            print("Ball not detected in the image.")
+            return
+        print(f"Ball coordinates in left image: {x_center}, {y_center}")
+        disparity_value =  disparity[y_center, x_center]
+        window = 5
+        half = window // 2
+        roi = disparity[y_center-half:y_center+half, x_center-half:x_center+half]
+        if roi.size == 0 or np.all(roi <= 0):
+            print("No valid disparity values in the region of interest.")
+            return
+        disparity_value = np.mean(roi[roi > 0]) 
+
+        focal_length = 1386.67
+        baseline = 3.0
+        Z = (focal_length * baseline) / (disparity_value + 1e-6)
+        
+        h,w =  disparity.shape
+        cx, cy = w//2, h//2 
+
+        X = (x_center - cx) * Z / focal_length
+        Y = (y_center - cy) * Z / focal_length
+        print(f"Ball coordinates in 3D space: {X}, {Y}, {Z}")
+        self.X_ball = X
+        self.Y_ball = Y
+        self.Z_ball = Z
+        return
+
+
+    
+    
+    # trying other stereo matching algorithms
     def stereo_match_BM(self):
         nDisparitiesFactor = 1
         stereo = cv2.StereoBM.create(numDisparities = 16 * nDisparitiesFactor, blockSize = 15)
@@ -48,8 +88,8 @@ class StereoMatching:
 
     # Function to read the images and perform stereo matching using SGBM algorithm 
     def stereo_match_SGBM(self, display = False):
-        left_gray = self.left_img
-        right_gray = self.right_img
+        left_gray = cv2.cvtColor(self.left_img, cv2.COLOR_BGR2GRAY)
+        right_gray = cv2.cvtColor(self.right_img, cv2.COLOR_BGR2GRAY)
         
         # left_gray = cv2.equalizeHist(left_gray)
         # right_gray = cv2.equalizeHist(right_gray)
@@ -86,8 +126,9 @@ class StereoMatching:
             speckleRange = 10,
             mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
         )
+
         
-        # disparity = stereo.compute(left_gray, right_gray).astype(np.float32) / 16.0
+        disparity = stereo.compute(left_gray, right_gray).astype(np.float32) / 16.0
         # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         # disparity_cleaned = cv2.morphologyEx(disparity, cv2.MORPH_OPEN, kernel)
 
@@ -101,7 +142,7 @@ class StereoMatching:
         # # Normalize and display the cleaned disparity map
         # disparity_normalized = cv2.normalize(disparity_cleaned, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
         
-
+        
         sigma = 1.0
         lmbda = 5000.0
         #create WSL filter
@@ -121,7 +162,7 @@ class StereoMatching:
             plt.colorbar()
             plt.show()
 
-        return filtered_disp
+        return disparity, filtered_disp
     
     def disparity2depth(self, disparity, display = False):
         # Parameters
@@ -136,7 +177,7 @@ class StereoMatching:
         depth[valid_pixels] = (focal_length * baseline) / (disparity[valid_pixels] + 1e-6)
 
         Z_min = 15.0
-        Z_max = 40.0
+        Z_max = 30.0
         depth = np.clip(depth, Z_min, Z_max)
 
 
@@ -162,7 +203,6 @@ class StereoMatching:
         # Parameters
         focal_length = 1386.67
         h, w = depth.shape
-        z_max = 40.0
 
         print("working on point cloud...")
 
@@ -172,37 +212,46 @@ class StereoMatching:
         y  = (v - h/2) * depth / focal_length
         z = depth
 
-        depth[depth > z_max] = z_max
 
-        #combine x y z to make the cloud map
-        cloud = np.dstack((x, y, z))
+        points = np.stack((x,y,z), axis=-1).reshape(-1, 3)
 
+        #filter unwanted points
+        valid_mask = (z>0 ) & (z<30)
+        points = points[valid_mask.reshape(-1)]
 
-        # Display the point cloud
+        #create open3d point cloud object for the full scene
         pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(cloud.reshape(-1, 3))
-        # Remove outliers
-        cl, ind = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
-        pcd = pcd.select_by_index(ind)
+        pcd.points = o3d.utility.Vector3dVector(points)
 
-        # Poisson surface reconstruction
-        mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
-        mesh.compute_vertex_normals()
-        mesh.paint_uniform_color([0.7, 0.7, 0.7])
+        # Create a point cloud for the ball
+        ball_sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.4)
+        ball_sphere.translate((self.X_ball, self.Y_ball, self.Z_ball))
+        ball_sphere.paint_uniform_color([1, 0, 0])  # Red color for the ball
 
-        print("point cloud done")
+        if display:
+            # Visualize the point cloud
+            o3d.visualization.draw_geometries([pcd, ball_sphere],
+                window_name="Point Cloud",
+                width=800,
+                height=600,
+                left=50,
+                top=50,
+                mesh_show_back_face=True)
+        return pcd
 
-        # Visualize the mesh
-        o3d.visualization.draw_geometries([mesh])
 
-        
         
  
 
 if __name__ == "__main__":
-    sm = StereoMatching(False)
-    disparity = sm.stereo_match_SGBM(display=False)
+    root = os.path.dirname(os.path.abspath(__file__))
+    left_img = cv2.imread(os.path.join(root, "..\\output_frames\\left\\left3_0111.jpg"))
+    right_img = cv2.imread(os.path.join(root, "..\\output_frames\\right\\right3_0111.jpg"))
+    sm = StereoMatching(left_img,right_img, displayImages=False)
+    raw_disp, disparity = sm.stereo_match_SGBM(display=False)
+    sm.calculate_3d_ball_coordinates(raw_disp)
     depth = sm.disparity2depth(disparity, display=False)
+    pcd = sm.depth2pointcloud(depth, display=True)
     # sm.depth2pointcloud(depth)
 
     plt.figure(figsize=(12,6))
@@ -222,6 +271,7 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
+
 
 
 
