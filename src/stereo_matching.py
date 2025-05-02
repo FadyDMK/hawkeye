@@ -40,8 +40,6 @@ class StereoMatching:
 
     def calculate_3d_ball_coordinates(self, disparity):
         ## GETTING BALL 3D COORDINATES
-        left_gray = cv2.cvtColor(self.left_img, cv2.COLOR_BGR2GRAY)
-        right_gray = cv2.cvtColor(self.right_img, cv2.COLOR_BGR2GRAY)
         leftImg = self.left_img
 
         (x_center, y_center) = get_ball_xy(leftImg)

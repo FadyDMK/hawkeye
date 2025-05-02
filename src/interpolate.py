@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 df = pd.read_csv('ball_positions.csv')
 print(df.head())
 
-df_interpolated = df.interpolate(method='polynomial', order= 2)
+df_interpolated = df.interpolate(method='polynomial', order= 4)
 df_interpolated.to_csv("interpolated_ball_positions.csv", index=False)
 print(df_interpolated.head(10))
 
