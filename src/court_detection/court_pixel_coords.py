@@ -3,7 +3,8 @@ import numpy as np
 import os
 
 root = os.path.dirname(os.path.abspath(__file__))
-img = os.path.join(root, "..\\output_frames\\left\\left3_0001.jpg")
+img = os.path.join(root, "..\\images\\court-top.png")
+img = cv2.imread(img)
 
 # List to store clicks
 pixels = []
