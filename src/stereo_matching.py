@@ -71,8 +71,6 @@ class StereoMatching:
         self.Z_ball = Z
         return
 
-
-    
     
     # trying other stereo matching algorithms
     def stereo_match_BM(self):
@@ -249,8 +247,6 @@ if __name__ == "__main__":
     raw_disp, disparity = sm.stereo_match_SGBM(display=False)
     sm.calculate_3d_ball_coordinates(raw_disp)
     depth = sm.disparity2depth(disparity, display=False)
-    pcd = sm.depth2pointcloud(depth, display=True)
-    # sm.depth2pointcloud(depth)
 
     plt.figure(figsize=(12,6))
 
@@ -269,6 +265,12 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
+
+
+    pcd = sm.depth2pointcloud(depth, display=True)
+    # sm.depth2pointcloud(depth)
+
+    
 
 
 

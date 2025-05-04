@@ -42,7 +42,7 @@ for frame_num in range(0, 146):
         print(f"Ball not detected in frame {frame_id}.")
 
 
-#export results to csv?
+#export results to csv
 with open("ball_positions.csv", "w") as f:
     f.write("Frame,X,Y,Z\n")
     for frame_num, x, y, z in ball_positions:

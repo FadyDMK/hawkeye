@@ -3,7 +3,9 @@ import cv2
 from matplotlib import cm
 import numpy as np
 import open3d as o3d
+import pyvista as pv
 import cv2
+from scipy.__config__ import show
 from roi import select_roi
 from lines import detect_lines
 from corners import compute_court_corners
@@ -20,6 +22,10 @@ R = [[-4.37113883e-08  ,4.37113883e-08 , 1.00000000e+00],
     [ 0.00000000e+00 , 1.00000000e+00 ,-4.37113883e-08]]
 t =  [25. , -1.5 , 5. ]  
 
+court_length = 31.2
+court_width = 15.1
+
+
 # Define the pixel coordinates of the court corners in the reference image
 ref_img_corners = np.array([(90.0, 116.0), (1818.0, 120.0), (92.0, 950.0), (1820.0, 952.0)], dtype=np.float32)
 
@@ -34,6 +40,95 @@ world_court_corners = np.array([
 DISPLAY_WIDTH, DISPLAY_HEIGHT = 960, 540
 
 # === Main ===
+
+def show_ball_top_down(ball_positions,overlay):
+    for (X, Y, Z) in ball_positions:
+        ball_pt = np.array([[X, Y, 1]], dtype=np.float32).T  # shape (3, 1)
+        img_pt = H_world2img @ ball_pt
+        img_pt = img_pt / img_pt[2]
+        u, v = int(img_pt[0]), int(img_pt[1])
+        intensity = int(np.clip((Z / 3.0) * 255, 0, 255))
+        cv2.circle(overlay, (u, v), 20, (0, intensity, 255-intensity), -1)
+
+    cv2.imshow("3D Ball Trajectory on Top-Down", cv2.resize(overlay, (DISPLAY_WIDTH, DISPLAY_HEIGHT)))
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+def show_court_and_ball(ball_positions):
+    
+
+    #=== Court parameters
+    plane_verts = np.array([
+        [-7.55, -15.6, 0],  # Bottom-left
+        [ 7.55, -15.6, 0],  # Bottom-right
+        [ 7.55,  15.6, 0],  # Top-right
+        [-7.55,  15.6, 0],  # Top-left
+    ])
+    plane_faces = np.array([4, 0, 1, 2, 3]) 
+    plane = pv.PolyData(plane_verts, faces=plane_faces)
+
+
+    #=== Net parameters
+    net_height = 3.32  # meters
+    net_thickness = 0.05  # meters (visual only)
+    net_width = 15.1  # meters (court width, sideline to sideline)
+
+    net_verts = np.array([
+        [-7.55, -net_thickness/2, 0],      # Bottom-left
+        [ 7.55, -net_thickness/2, 0],      # Bottom-right
+        [ 7.55,  net_thickness/2, 0],      # Top-right
+        [-7.55,  net_thickness/2, 0],      # Top-left
+        [-7.55, -net_thickness/2, net_height],  # Upper-bottom-left
+        [ 7.55, -net_thickness/2, net_height],  # Upper-bottom-right
+        [ 7.55,  net_thickness/2, net_height],  # Upper-top-right
+        [-7.55,  net_thickness/2, net_height],  # Upper-top-left
+    ])
+
+    # Faces for a box (6 faces, each with 4 vertices)
+    net_faces = [
+        [4, 0, 1, 2, 3],  # bottom
+        [4, 4, 5, 6, 7],  # top
+        [4, 0, 1, 5, 4],  # front
+        [4, 2, 3, 7, 6],  # back
+        [4, 1, 2, 6, 5],  # right
+        [4, 0, 3, 7, 4],  # left
+    ]
+    net_faces = np.hstack(net_faces)
+
+    net = pv.PolyData(net_verts, faces=net_faces)
+
+
+    # Plot
+    plotter = pv.Plotter()
+    for (X, Y, Z) in ball_positions:
+        sphere = pv.Sphere(center=(X,Y, Z), radius=0.3)
+        plotter.add_mesh(sphere, color='red')
+    plotter.add_mesh(plane, color='green')
+    plotter.add_mesh(net, color='black', opacity=0.7)
+    plane = pv.Plane(center=(0,0,0),
+                    direction=(0,0,1),
+                    i_size=court_width,
+                    j_size=court_length,
+                    i_resolution=1,
+                    j_resolution=1)
+    plotter.add_mesh(plane, color='lightgray', opacity=0.5)
+    #add axes
+    plotter.add_axes(
+        line_width=4,
+        labels_off=False,
+        x_color='r', y_color='g', z_color='b'
+    )
+    #add grid
+    plotter.show_grid()
+    plotter.camera_position = [
+        (25. , -1.5 , 5. ),
+        (0. , 0. , 1. ), 
+        (0. , 0. , 1. )
+    ]
+    plotter.show()
+
+
 
 def load_and_crop_image(image_path):
     orig = cv2.imread(image_path)
@@ -114,7 +209,7 @@ if ref_img is None:
 else:
     # Example: your ball positions in world coordinates (X, Y, Z in meters)
     # Replace with your actual 3D output list
-    ball_camera = [(12.236497531256097, 3.3046337281863605, 21.615266282378208)]
+    ball_camera = [(12.236497531256097, 3.3046337281863605, 21.615266282378208),(-7.841110260101454,2.5932838620648035,28.315188448892926)]
     ball_world_3d = []
     
     for pos in ball_camera:
@@ -127,29 +222,11 @@ else:
     H_world2img, _ = cv2.findHomography(world_court_corners, ref_img_corners)
 
     overlay = ref_img.copy()
-    for X, Y, Z in ball_world_3d:
-        ball_pt = np.array([[X, Y, 1]], dtype=np.float32).T  # shape (3, 1)
-        img_pt = H_world2img @ ball_pt
-        img_pt = img_pt / img_pt[2]
-        u, v = int(img_pt[0]), int(img_pt[1])
-        intensity = int(np.clip((Z / 3.0) * 255, 0, 255))
-        cv2.circle(overlay, (u, v), 20, (0, intensity, 255-intensity), -1)
-
-    cv2.imshow("3D Ball Trajectory on Top-Down", cv2.resize(overlay, (DISPLAY_WIDTH, DISPLAY_HEIGHT)))
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    show_ball_top_down(ball_world_3d, overlay)
+    show_court_and_ball(ball_world_3d)
 
 
     # === 8. Plot 3D ball world positions in 3D space
-    if not ball_world_3d or len(ball_world_3d[0]) != 3:
-        raise RuntimeError("Ball world position is invalid!")
-
-    # Create a sphere for the ball
-    ball = o3d.geometry.TriangleMesh.create_sphere(radius=0.15)
-    ball.translate(ball_world_3d[0])  # Move to ball position (X, Y, Z)
-    ball.paint_uniform_color([1, 0, 0])  # Red ball
-
-    # Visualize
-    o3d.visualization.draw_geometries([ball])
+    # Court dimensions (adjust if needed)
 
 
