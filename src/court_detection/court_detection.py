@@ -56,24 +56,40 @@ def show_ball_top_down(ball_positions,overlay):
 
 
 def show_court_and_ball(ball_positions):
-    
+    # === Court parameters
+    court_length = 31.2
+    court_width = 15.1
+    court_thickness = 0.7  # meters
 
-    #=== Court parameters
-    plane_verts = np.array([
-        [-7.55, -15.6, 0],  # Bottom-left
-        [ 7.55, -15.6, 0],  # Bottom-right
-        [ 7.55,  15.6, 0],  # Top-right
-        [-7.55,  15.6, 0],  # Top-left
+    z0 = 0  # bottom of court
+    z1 = court_thickness  # top of court
+
+    court_verts = np.array([
+        [-7.55, -15.6, z0],  # 0: Bottom-left-bottom
+        [ 7.55, -15.6, z0],  # 1: Bottom-right-bottom
+        [ 7.55,  15.6, z0],  # 2: Top-right-bottom
+        [-7.55,  15.6, z0],  # 3: Top-left-bottom
+        [-7.55, -15.6, z1],  # 4: Bottom-left-top
+        [ 7.55, -15.6, z1],  # 5: Bottom-right-top
+        [ 7.55,  15.6, z1],  # 6: Top-right-top
+        [-7.55,  15.6, z1],  # 7: Top-left-top
     ])
-    plane_faces = np.array([4, 0, 1, 2, 3]) 
-    plane = pv.PolyData(plane_verts, faces=plane_faces)
 
+    court_faces = [
+        [4, 0, 1, 2, 3],  # bottom
+        [4, 4, 5, 6, 7],  # top
+        [4, 0, 1, 5, 4],  # front
+        [4, 2, 3, 7, 6],  # back
+        [4, 1, 2, 6, 5],  # right
+        [4, 0, 3, 7, 4],  # left
+    ]
+    court_faces = np.hstack(court_faces)
+    court = pv.PolyData(court_verts, faces=court_faces)
 
-    #=== Net parameters
+    # === Net parameters (unchanged)
     net_height = 3.32  # meters
     net_thickness = 0.05  # meters (visual only)
     net_width = 15.1  # meters (court width, sideline to sideline)
-
     net_verts = np.array([
         [-7.55, -net_thickness/2, 0],      # Bottom-left
         [ 7.55, -net_thickness/2, 0],      # Bottom-right
@@ -84,8 +100,6 @@ def show_court_and_ball(ball_positions):
         [ 7.55,  net_thickness/2, net_height],  # Upper-top-right
         [-7.55,  net_thickness/2, net_height],  # Upper-top-left
     ])
-
-    # Faces for a box (6 faces, each with 4 vertices)
     net_faces = [
         [4, 0, 1, 2, 3],  # bottom
         [4, 4, 5, 6, 7],  # top
@@ -95,17 +109,16 @@ def show_court_and_ball(ball_positions):
         [4, 0, 3, 7, 4],  # left
     ]
     net_faces = np.hstack(net_faces)
-
     net = pv.PolyData(net_verts, faces=net_faces)
 
-
-    # Plot
+    BALL_SIZE = 0.72
     plotter = pv.Plotter()
     for (X, Y, Z) in ball_positions:
-        sphere = pv.Sphere(center=(X,Y, Z), radius=0.3)
+        sphere = pv.Sphere(center=(X, Y, Z), radius=0.3)
         plotter.add_mesh(sphere, color='red')
-    plotter.add_mesh(plane, color='green')
+    plotter.add_mesh(court, color='green', opacity=1.0)
     plotter.add_mesh(net, color='black', opacity=0.7)
+    # Optionally, add a lightgray plane for visual reference
     plane = pv.Plane(center=(0,0,0),
                     direction=(0,0,1),
                     i_size=court_width,
@@ -113,13 +126,11 @@ def show_court_and_ball(ball_positions):
                     i_resolution=1,
                     j_resolution=1)
     plotter.add_mesh(plane, color='lightgray', opacity=0.5)
-    #add axes
     plotter.add_axes(
         line_width=4,
         labels_off=False,
         x_color='r', y_color='g', z_color='b'
     )
-    #add grid
     plotter.show_grid()
     plotter.camera_position = [
         (25. , -1.5 , 5. ),
@@ -209,7 +220,7 @@ if ref_img is None:
 else:
     # Example: your ball positions in world coordinates (X, Y, Z in meters)
     # Replace with your actual 3D output list
-    ball_camera = [(12.236497531256097, 3.3046337281863605, 21.615266282378208),(-7.841110260101454,2.5932838620648035,28.315188448892926)]
+    ball_camera = [(12.236497531256097, 3.3046337281863605, 21.615266282378208),(-7.841110260101454,2.5932838620648035,28.315188448892926),(3.3785905101156053,1.4408694822551844,22.96563775814709)]
     ball_world_3d = []
     
     for pos in ball_camera:
