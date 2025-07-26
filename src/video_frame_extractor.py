@@ -241,31 +241,38 @@ class VideoFrameExtractor:
             if self.extraction_running:
                 self.status_var.set("Extraction complete")
                 self.log_message("Frame extraction completed successfully")
-                messagebox.showinfo("Success", "Frame extraction completed successfully!")
-            else:
-                self.status_var.set("Extraction cancelled")
-            if self.extraction_running:
-                self.status_var.set("Extraction complete")
-                self.log_message("Frame extraction completed successfully")
                 
-                # Show dialog asking if they want to continue to Frame Analyzer
+                # Ask if user wants to proceed to Frame Analyzer
                 result = messagebox.askquestion("Success", 
-                                            "Frame extraction completed successfully!\n\nWould you like to open the Frame Analyzer to process these frames?",
-                                            icon='info')
+                                              "Frame extraction completed successfully!\n\nWould you like to open the Frame Analyzer to process these frames?",
+                                              icon='info')
                 if result == 'yes':
-                    self.root.destroy()  # Close frame extractor
-                    
-                    # Launch the frame selector
-                    import front_end
-                    root = tk.Tk()
-                    app = front_end.FrameSelectorApp(root)
-                    root.mainloop()
-                    return  # Exit this function since we're launching another app
+                    try:
+                        # Launch the frame selector in a separate window, keeping extractor open
+                        import front_end
+                        analyzer_root = tk.Toplevel(self.root)
+                        analyzer_root.withdraw()  # Hide temporarily
+                        
+                        # Create the frame analyzer app
+                        app = front_end.FrameSelectorApp(analyzer_root)
+                        
+                        # Show the analyzer window
+                        analyzer_root.deiconify()
+                        
+                        # Minimize the extractor window
+                        self.root.iconify()
+                        
+                        self.log_message("Frame Analyzer launched successfully")
+                        
+                    except Exception as e:
+                        self.log_message(f"Error launching Frame Analyzer: {str(e)}")
+                        messagebox.showerror("Error", f"Failed to launch Frame Analyzer: {str(e)}")
                 else:
                     # Just show success message if they choose not to continue
                     messagebox.showinfo("Success", "Frame extraction completed successfully!")
             else:
                 self.status_var.set("Extraction cancelled")
+                
         except Exception as e:
             self.log_message(f"Error during extraction: {str(e)}")
             self.status_var.set("Error occurred")

@@ -4,7 +4,7 @@ import os
 
 
 def get_ball_xy(image):
-    model = YOLO("../runs/detect/train18/weights/best.pt") 
+    model = YOLO("../runs/detect/train19_improved/weights/best.pt") 
     print("Model loaded")
     results = model(image, show=False, conf=0.5)
     for r in results:

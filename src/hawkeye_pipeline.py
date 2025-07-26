@@ -5,47 +5,13 @@ import cv2
 import numpy as py
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Union, Any, Optional
+from camera_config import load_camera_config
 
 
 class HawkeyePipeline:
-    def __init__(self, config):
-        self.config = self._load_config(config)
+    def __init__(self, config=None):
+        self.config = config if config else load_camera_config()
         self.__init__components()
-    
-    def _load_config(self, config_path):
-        if config_path and os.path.exists(config_path):
-            import json
-            with open(config_path, 'r') as file:
-                return json.load(file)
-        else:
-            return {
-                "camera": {
-                    "focal_length_px": 1386.67,  # in pixels
-                    "baseline": 3.0,             # in meters
-                    "min_depth": 15.0,           # in meters
-                    "max_depth": 40.0,           # in meters
-                },
-                "court": {
-                    "length": 31.2,              # in meters
-                    "width": 15.1,               # in meters
-                    "net_height": 3.32,          # in meters
-                },
-                "ball_detection": {
-                    "model_path": "../runs/detect/train18/weights/best.pt",
-                    "confidence_threshold": 0.5
-                },
-                "stereo_matching": {
-                    "block_size": 5,
-                    "window_size": 5,
-                    "min_disparity": -1,
-                    "num_disparities_factor": 16
-                },
-                "paths": {
-                    "left_frames_dir": "../output_frames/left",
-                    "right_frames_dir": "../output_frames/right",
-                    "output_dir": "../output"
-                }
-            }
     
     def __init__components(self):
         from volleyball_detection import get_ball_xy
@@ -108,10 +74,10 @@ class HawkeyePipeline:
         }
     
     def process_video(self, start_frame = 0, end_frame = None):
-        #paths
+        #paths - use default paths since they're not in camera config
         root = os.path.dirname(os.path.abspath(__file__))
-        left_frames_dir = os.path.join(root, self.config["paths"]["left_frames_dir"])
-        right_frames_dir = os.path.join(root, self.config["paths"]["right_frames_dir"])
+        left_frames_dir = os.path.join(root, "..", "output_frames", "left")
+        right_frames_dir = os.path.join(root, "..", "output_frames", "right")
 
         if end_frame is None:
             import glob
@@ -140,7 +106,8 @@ class HawkeyePipeline:
     def export_results(self, output_path = None):
         """ Export ball position results to a CSV file. """
         if output_path is None:
-            output_path = os.path.join(self.config["paths"]["output_dir"])
+            root = os.path.dirname(os.path.abspath(__file__))
+            output_path = os.path.join(root, "..", "output")
             os.makedirs(output_path, exist_ok=True)
         
         #   Export camera coordinates
@@ -172,9 +139,9 @@ class HawkeyePipeline:
         import pyvista as pv
         import numpy as np
 
-        # Court parameters
-        court_length = self.config["court"]["length"]
-        court_width = self.config["court"]["width"]
+        # Court parameters - use values from configuration
+        court_length = self.config.get("court_length_m", 18.0)
+        court_width = self.config.get("court_width_m", 9.0)
         court_thickness = 0.7 # in meters
 
         # Create a court mesh
@@ -201,7 +168,7 @@ class HawkeyePipeline:
         court = pv.PolyData(court_verts, faces=court_faces)
 
         # Net parameters
-        net_height = self.config["court"]["net_height"]
+        net_height = self.config.get("net_height_m", 2.43)
         net_thickness = 0.05
 
         # Create a net mesh
@@ -259,11 +226,10 @@ class HawkeyePipeline:
 
     def process_single_frame(self, frame_num):
         """ for processing a single frame """
-        #paths
+        #paths - use default paths since they're not in camera config
         root = os.path.dirname(os.path.abspath(__file__))
-        left_frames_dir = os.path.join(root, self.config["paths"]["left_frames_dir"])
-        right_frames_dir = os.path.join(root, self.config["paths"]["right_frames_dir"])
-
+        left_frames_dir = os.path.join(root, "..", "output_frames", "left")
+        right_frames_dir = os.path.join(root, "..", "output_frames", "right")
 
         #   Format frame number
         frame_id = f"{frame_num:04d}"
@@ -302,8 +268,8 @@ class HawkeyePipeline:
         fig, ax = plt.subplots(figsize=(10, 8))
 
         # Court dimensions
-        court_length = self.config["court"]["length"]
-        court_width = self.config["court"]["width"]
+        court_length = self.config.get("court_length_m", 18.0)
+        court_width = self.config.get("court_width_m", 9.0)
 
         # Draw Court Boundaries
         court_x = [-court_width/2, court_width/2, court_width/2, -court_width/2, -court_width/2]

@@ -48,6 +48,23 @@ hawkeye/
 
 ## Usage
 
+### Camera & Court Configuration (New!)
+
+Before using the system, configure your camera and court parameters:
+
+```sh
+python src/hawkeye_launcher.py
+```
+
+Click "Camera & Court Configuration" to set up:
+- Camera hardware parameters (focal length, sensor size, resolution)
+- Camera setup (baseline distance between cameras)
+- Depth range (min/max trackable distances)
+- Court dimensions (volleyball court length, width, net height)
+- Stereo matching algorithm parameters
+
+The configuration is saved as `camera_config.json` and automatically loaded by all components.
+
 ### Frame-by-Frame Analysis with GUI
 
 To launch the interactive GUI for frame-by-frame analysis:
@@ -68,7 +85,7 @@ To process entire videos and generate ball position data:
 ```python
 from hawkeye_pipeline import HawkeyePipeline
 
-pipeline = HawkeyePipeline(None)
+pipeline = HawkeyePipeline()  # Uses saved configuration
 pipeline.process_video(start_frame=0, end_frame=146)
 pipeline.export_results()
 pipeline.visualize_results(type="3d")  # Or type="2d" for top-down view
@@ -111,10 +128,11 @@ pip freeze > requirements.txt
 
 Planned future improvements:
 
-- [ ] Add automatic video frame extraction utility
+- [x] Add automatic video frame extraction utility
+- [x] Add configurable camera and court parameters
 - [ ] Improve ball detection robustness in occlusion scenarios
 - [ ] Enhance 3D visualization with animation and trajectory lines
-- [ ] Implement web-based dashboard for results?
+- [ ] Implement web-based dashboard for results
 - [ ] Improve calibration workflow and user interface
 - [ ] Add unit and integration tests for pipeline modules
 - [ ] Optimize performance for large datasets

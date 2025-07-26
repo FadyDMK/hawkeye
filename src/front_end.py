@@ -1,20 +1,35 @@
 import os
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import cv2
 from PIL import Image, ImageTk
 from numpy import isin
 from pyvista import wrap
 from hawkeye_pipeline import HawkeyePipeline
+from camera_config import load_camera_config, CameraConfigDialog
 
 class FrameSelectorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Frame Selector")
+        self.root.title("Hawkeye - Frame Analyzer")
         self.root.geometry("1200x800")
 
+        # Load camera configuration
+        self.config = load_camera_config()
+        
+        # Check if configuration exists, if not prompt user
+        if not os.path.exists(os.path.join(os.path.dirname(__file__), "camera_config.json")):
+            result = messagebox.askyesno("Configuration Missing", 
+                                       "Camera configuration not found. Would you like to set it up now?")
+            if result:
+                dialog = CameraConfigDialog(self.root)
+                config = dialog.get_config()
+                if config:
+                    self.config = config
+                else:
+                    messagebox.showinfo("Using Defaults", "Using default configuration values.")
 
-        self.pipeline = HawkeyePipeline(None)
+        self.pipeline = HawkeyePipeline(self.config)
 
         src_dir = os.path.dirname(os.path.abspath(__file__))
         self.left_frames_dir = os.path.join(src_dir, "..", "output_frames", "left")

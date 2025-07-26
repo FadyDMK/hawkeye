@@ -54,6 +54,14 @@ class HawkeyeLauncher:
         version_label = ttk.Label(footer_frame, text="v1.0.0", font=("Arial", 10))
         version_label.pack(side="right")
     
+    def launch_configuration(self):
+        from camera_config import CameraConfigDialog
+        dialog = CameraConfigDialog(self.root)
+        config = dialog.get_config()
+        if config:
+            # Configuration was saved successfully
+            pass
+    
     def launch_frame_extractor(self):
         self.root.destroy()  # Close launcher
         # Import and run frame extractor
