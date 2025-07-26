@@ -5,31 +5,17 @@ from matplotlib import pyplot as plt
 import open3d as o3d
 
 from volleyball_detection import get_ball_xy
-
-##Math formulas
-
-## focal length = 26mm
-## resolution = 1920x1080
-## sensor width = 36 mm
-## focal length in px = (focal length * resolution) / sensor width
-## focal length in px = 1386.67 px 
-## baseline = 3m
-## Z_min = 15m
-## Z_max = 40m
-
-#max_disp = (baseline * focal_length) / Z_min = 554
-#min_disp = (baseline * focal_length) / Z_max = 208 
-#numDisparities = round_to_multiple_of_16(d_max - d_min) = 22
+from camera_config import load_camera_config
 
 class StereoMatching:
-    
-
-    def __init__(self,left_img,right_img, displayImages=False):
+    def __init__(self, left_img, right_img, config=None, displayImages=False):
         self.left_img = left_img
         self.right_img = right_img
+        self.config = config if config else load_camera_config()
         self.X_ball = None
         self.Y_ball = None
         self.Z_ball = None
+        
         if displayImages:
             plt.figure()
             plt.subplot(121)
@@ -56,8 +42,9 @@ class StereoMatching:
             return
         disparity_value = np.mean(roi[roi > 0]) 
 
-        focal_length = 1386.67
-        baseline = 3.0
+        # Use configured parameters
+        focal_length = self.config['focal_length_px']
+        baseline = self.config['baseline_m']
         Z = (focal_length * baseline) / (disparity_value + 1e-6)
         
         h,w =  disparity.shape
@@ -98,14 +85,12 @@ class StereoMatching:
         # left_gray = clahe.apply(left_gray)
         # right_gray = clahe.apply(right_gray)
         
-        
-
         ## STEREO MATCHING
-        #stereo matching settings
-        window_size = 5
-        block_size = 5
-        min_disp = -1
-        nDispFactor = 16
+        # Use configured parameters
+        window_size = self.config['sgbm_window_size']
+        block_size = self.config['sgbm_block_size']
+        min_disp = self.config['sgbm_min_disp']
+        nDispFactor = self.config['sgbm_num_disp_factor']
         num_disp = nDispFactor * 16 - min_disp
 
         print("working on disparity map...")
@@ -116,10 +101,10 @@ class StereoMatching:
             P1 = 8*3*window_size**2,
             P2 = 32*3*window_size**2,
             disp12MaxDiff = 0,
-            uniquenessRatio = 15,
-            speckleWindowSize = 50,
+            uniquenessRatio = self.config['sgbm_uniqueness_ratio'],
+            speckleWindowSize = self.config['sgbm_speckle_window_size'],
             preFilterCap = 63,
-            speckleRange = 10,
+            speckleRange = self.config['sgbm_speckle_range'],
             mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
         )
 
@@ -139,20 +124,28 @@ class StereoMatching:
         # disparity_normalized = cv2.normalize(disparity_cleaned, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
         
         
-        sigma = 1.0
-        lmbda = 5000.0
+        # Use configured WLS filter parameters
+        sigma = self.config['wls_sigma']
+        lmbda = self.config['wls_lambda']
+        
         #create WSL filter
         left_matcher = stereo
-        right_matcher = cv2.ximgproc.createRightMatcher(left_matcher)
-        left_disp = left_matcher.compute(left_gray, right_gray)
-        right_disp = right_matcher.compute(right_gray, left_gray)
-        #applying WSL filter
-        wls_filter = cv2.ximgproc.createDisparityWLSFilter(left_matcher)
-        wls_filter.setLambda(lmbda)
-        wls_filter.setSigmaColor(sigma)
-        filtered_disp = wls_filter.filter(left_disp, left_gray, disparity_map_right=right_disp) 
-        filtered_disp = cv2.normalize(src=filtered_disp, dst=filtered_disp, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
-        filtered_disp = np.uint8(filtered_disp)
+        
+        try:
+            right_matcher = cv2.ximgproc.createRightMatcher(left_matcher)
+            left_disp = left_matcher.compute(left_gray, right_gray)
+            right_disp = right_matcher.compute(right_gray, left_gray)
+            #applying WSL filter
+            wls_filter = cv2.ximgproc.createDisparityWLSFilter(left_matcher)
+            wls_filter.setLambda(lmbda)
+            wls_filter.setSigmaColor(sigma)
+            filtered_disp = wls_filter.filter(left_disp, left_gray, disparity_map_right=right_disp) 
+            filtered_disp = cv2.normalize(src=filtered_disp, dst=filtered_disp, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
+            filtered_disp = np.uint8(filtered_disp)
+        except AttributeError:
+            print("Warning: ximgproc not available. Using basic disparity map.")
+            filtered_disp = cv2.normalize(disparity, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            
         if display:
             plt.imshow(filtered_disp, 'gray')
             plt.colorbar()
@@ -161,9 +154,11 @@ class StereoMatching:
         return disparity, filtered_disp
     
     def disparity2depth(self, disparity, display = False):
-        # Parameters
-        focal_length = 1386.67
-        baseline = 3.0
+        # Use configured parameters
+        focal_length = self.config['focal_length_px']
+        baseline = self.config['baseline_m']
+        z_min = self.config['z_min_m']
+        z_max = self.config['z_max_m']
 
         print("working on depth map...")
 
@@ -172,10 +167,7 @@ class StereoMatching:
         valid_pixels = disparity > 0
         depth[valid_pixels] = (focal_length * baseline) / (disparity[valid_pixels] + 1e-6)
 
-        Z_min = 15.0
-        Z_max = 30.0
-        depth = np.clip(depth, Z_min, Z_max)
-
+        depth = np.clip(depth, z_min, z_max)
 
         # #median filter to remove the noise
         # depth = cv2.medianBlur(depth, 5)
@@ -192,12 +184,12 @@ class StereoMatching:
             plt.colorbar()
             plt.show()
 
-
         return depth
     
     def depth2pointcloud(self, depth, display = False):
-        # Parameters
-        focal_length = 1386.67
+        # Use configured parameters
+        focal_length = self.config['focal_length_px']
+        z_max = self.config['z_max_m']
         h, w = depth.shape
 
         print("working on point cloud...")
@@ -208,11 +200,10 @@ class StereoMatching:
         y  = (v - h/2) * depth / focal_length
         z = depth
 
-
         points = np.stack((x,y,z), axis=-1).reshape(-1, 3)
 
         #filter unwanted points
-        valid_mask = (z>0 ) & (z<30)
+        valid_mask = (z>0 ) & (z<z_max)
         points = points[valid_mask.reshape(-1)]
 
         #create open3d point cloud object for the full scene

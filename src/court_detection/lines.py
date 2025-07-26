@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from sklearn.cluster import KMeans
  
 def detect_lines(img,
                  canny_thresh1=50, canny_thresh2=150,
