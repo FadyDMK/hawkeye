@@ -1,7 +1,7 @@
 import os
-import tkinter as tk
-from tkinter import ttk
 import sys
+import tkinter as tk
+from tkinter import ttk, messagebox
 
 class HawkeyeLauncher:
     def __init__(self, root):
@@ -25,23 +25,39 @@ class HawkeyeLauncher:
         btn_frame.pack(fill="both", expand=True, pady=20)
         
         # Configuration button
-        config_btn = ttk.Button(btn_frame, text="Camera & Court Configuration", 
-                               command=self.launch_configuration, width=30)
+        config_btn = ttk.Button(
+            btn_frame,
+            text="Camera & Court Configuration",
+            command=self.launch_configuration,
+            width=30,
+        )
         config_btn.pack(pady=10)
         
         # Extract frames button
-        extract_btn = ttk.Button(btn_frame, text="Video Frame Extractor", 
-                                command=self.launch_frame_extractor, width=30)
+        extract_btn = ttk.Button(
+            btn_frame,
+            text="Video Frame Extractor",
+            command=self.launch_frame_extractor,
+            width=30,
+        )
         extract_btn.pack(pady=10)
         
         # Frame selector button
-        frame_selector_btn = ttk.Button(btn_frame, text="Frame Analyzer", 
-                                     command=self.launch_frame_selector, width=30)
+        frame_selector_btn = ttk.Button(
+            btn_frame,
+            text="Frame Analyzer",
+            command=self.launch_frame_selector,
+            width=30,
+        )
         frame_selector_btn.pack(pady=10)
         
         # Process videos button
-        process_btn = ttk.Button(btn_frame, text="Process Complete Videos", 
-                              command=self.launch_video_processor, width=30)
+        process_btn = ttk.Button(
+            btn_frame,
+            text="Process Complete Videos",
+            command=self.launch_video_processor,
+            width=30,
+        )
         process_btn.pack(pady=10)
         
         # Footer
@@ -55,47 +71,55 @@ class HawkeyeLauncher:
         version_label.pack(side="right")
     
     def launch_configuration(self):
-        from camera_config import CameraConfigDialog
-        dialog = CameraConfigDialog(self.root)
-        config = dialog.get_config()
-        if config:
-            # Configuration was saved successfully
-            pass
+        # Open configuration in a child window without closing launcher
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
+            from camera_config import CameraConfigDialog
+        except Exception as e:
+            messagebox.showerror("Error", f"Cannot open configuration: {e}")
+            return
+        top = tk.Toplevel(self.root)
+        top.title("Camera & Court Configuration")
+        # CameraConfigDialog is expected to manage its own layout/events
+        CameraConfigDialog(top)
+
+    def _run_script(self, script_name: str):
+        """Launch a Python script as a separate process, keeping launcher open."""
+        script_path = os.path.join(os.path.dirname(__file__), script_name)
+        if not os.path.exists(script_path):
+            messagebox.showerror("Error", f"Not found: {script_name}")
+            return
+        try:
+            # Use the current Python interpreter
+            if os.name == 'nt':
+                os.spawnl(os.P_NOWAIT, sys.executable, sys.executable, script_path)
+            else:
+                pid = os.fork()
+                if pid == 0:
+                    os.execl(sys.executable, sys.executable, script_path)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to launch {script_name}: {e}")
     
     def launch_frame_extractor(self):
-        self.root.destroy()  # Close launcher
-        # Import and run frame extractor
-        from video_frame_extractor import VideoFrameExtractor
-        app = VideoFrameExtractor()
-        app.run()
+        # Prefer the main extractor file
+        self._run_script("video_frame_extractor.py")
     
     def launch_frame_selector(self):
-        self.root.destroy()  # Close launcher
-        # Import and run frame selector
-        import front_end
-        root = tk.Tk()
-        app = front_end.FrameSelectorApp(root)
-        root.mainloop()
+        # Try main.py first; fallback to front_end.py
+        if os.path.exists(os.path.join(os.path.dirname(__file__), "main.py")):
+            self._run_script("main.py")
+        else:
+            self._run_script("front_end.py")
     
     def launch_video_processor(self):
-        self.root.destroy()  # Close launcher
-        # You could create a simple GUI for this too, or just run the pipeline directly
-        try:
-            from process_videos_gui import ProcessVideosGUI
-            app = ProcessVideosGUI()
-            app.run()
-        except ImportError:
-            # Fallback if the GUI isn't implemented yet
-            import tkinter as tk
-            from tkinter import messagebox
-            
-            # Show message that this feature is coming soon
-            root = tk.Tk()
-            root.withdraw()  # Hide the root window
-            messagebox.showinfo("Coming Soon", 
-                            "The full video processing interface is under development.\n\n" +
-                            "You can currently process frames using the Frame Analyzer.")
-            root.destroy()
+        # Placeholder for future full-video processor GUI
+        messagebox.showinfo(
+            "Coming Soon",
+            "The full video processing interface is under development.\n\n"
+            "You can currently process frames using the Frame Analyzer."
+        )
 if __name__ == "__main__":
     root = tk.Tk()
     app = HawkeyeLauncher(root)

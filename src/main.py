@@ -2,7 +2,6 @@ import os
 from tracemalloc import start
 import tkinter as tk
 from front_end import FrameSelectorApp
-from sklearn import pipeline
 from hawkeye_pipeline import HawkeyePipeline
 
 def main():

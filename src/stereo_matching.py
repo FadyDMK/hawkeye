@@ -1,10 +1,12 @@
 import cv2
 import numpy as np
 import os
+import sys
 from matplotlib import pyplot as plt
 import open3d as o3d
 
 from volleyball_detection import get_ball_xy
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
 from camera_config import load_camera_config
 
 class StereoMatching:
@@ -24,38 +26,200 @@ class StereoMatching:
             plt.imshow(self.right_img, 'gray')
             plt.show()
 
-    def calculate_3d_ball_coordinates(self, disparity):
-        ## GETTING BALL 3D COORDINATES
+    def try_detection_triangulation(self) -> bool:
+        """Fast path: compute 3D from left/right detections only; return True if valid and set X/Y/Z."""
         leftImg = self.left_img
+        rightImg = self.right_img
 
-        (x_center, y_center) = get_ball_xy(leftImg)
-        if x_center is None or y_center is None:
-            print("Ball not detected in the image.")
-            return
-        print(f"Ball coordinates in left image: {x_center}, {y_center}")
-        disparity_value =  disparity[y_center, x_center]
-        window = 5
-        half = window // 2
-        roi = disparity[y_center-half:y_center+half, x_center-half:x_center+half]
-        if roi.size == 0 or np.all(roi <= 0):
-            print("No valid disparity values in the region of interest.")
-            return
-        disparity_value = np.mean(roi[roi > 0]) 
+        x_left, y_left = get_ball_xy(leftImg)
+        if x_left is None or y_left is None:
+            return False
+        x_right, y_right = get_ball_xy(rightImg)
+        if x_right is None or y_right is None:
+            return False
 
-        # Use configured parameters
-        focal_length = self.config['focal_length_px']
+        # Focal scaling to actual image width
+        focal_length_cfg = self.config['focal_length_px']
+        cfg_width = self.config.get('resolution_width', self.left_img.shape[1])
+        img_width = self.left_img.shape[1]
+        focal_length = float(focal_length_cfg) * (float(img_width) / float(cfg_width))
         baseline = self.config['baseline_m']
-        Z = (focal_length * baseline) / (disparity_value + 1e-6)
-        
-        h,w =  disparity.shape
-        cx, cy = w//2, h//2 
+        z_min = self.config.get('z_min_m', 15.0)
+        z_max = self.config.get('z_max_m', 40.0)
 
-        X = (x_center - cx) * Z / focal_length
-        Y = (y_center - cy) * Z / focal_length
-        print(f"Ball coordinates in 3D space: {X}, {Y}, {Z}")
-        self.X_ball = X
-        self.Y_ball = Y
-        self.Z_ball = Z
+        d = float(x_left - x_right)
+        if d <= 0.5:
+            return False
+        Z = (focal_length * baseline) / (d + 1e-6)
+        if not (z_min <= Z <= z_max):
+            return False
+        h, w = self.left_img.shape[:2]
+        cx, cy = w // 2, h // 2
+        X = (x_left - cx) * Z / focal_length
+        Y = (y_left - cy) * Z / focal_length
+        print(f"Ball coordinates in left image: {x_left}, {y_left}")
+        print(f"Ball coordinates in 3D (det-based): {X}, {Y}, {Z}")
+        self.X_ball, self.Y_ball, self.Z_ball = X, Y, Z
+        return True
+
+    def calculate_3d_ball_coordinates(self, disparity):
+        """Compute 3D ball coordinates: detection-based disparity, then SGBM ROI, then NCC, then local high-res SGBM."""
+        leftImg = self.left_img
+        rightImg = self.right_img
+
+        x_left, y_left = get_ball_xy(leftImg)
+        if x_left is None or y_left is None:
+            print("Ball not detected in the left image.")
+            return
+        print(f"Ball coordinates in left image: {x_left}, {y_left}")
+
+        # Scale focal length to actual image width if different from configured resolution
+        focal_length_cfg = self.config['focal_length_px']
+        cfg_width = self.config.get('resolution_width', self.left_img.shape[1])
+        img_width = self.left_img.shape[1]
+        focal_length = float(focal_length_cfg) * (float(img_width) / float(cfg_width))
+        baseline = self.config['baseline_m']
+        z_min = self.config.get('z_min_m', 15.0)
+        z_max = self.config.get('z_max_m', 40.0)
+
+        # 1) Try detection-based disparity using right image
+        x_right, y_right = get_ball_xy(rightImg)
+        if x_right is not None and y_right is not None:
+            d = float(x_left - x_right)
+            if d > 0.5:
+                Z = (focal_length * baseline) / (d + 1e-6)
+                if z_min <= Z <= z_max:
+                    h, w = disparity.shape
+                    cx, cy = w // 2, h // 2
+                    X = (x_left - cx) * Z / focal_length
+                    Y = (y_left - cy) * Z / focal_length
+                    print(f"Ball coordinates in 3D (det-based): {X}, {Y}, {Z}")
+                    self.X_ball, self.Y_ball, self.Z_ball = X, Y, Z
+                    return
+                else:
+                    print(f"Det-based Z {Z:.3f}m out of range [{z_min},{z_max}], falling back to SGBM.")
+            else:
+                print("Det-based disparity too small or negative, falling back to SGBM.")
+
+        # 2) Fallback: progressively expand ROI around left detection and use median disparity
+        h, w = disparity.shape
+        disp_roi = None
+        for window in (9, 13, 17, 21, 25, 31):
+            half = window // 2
+            y0 = max(0, y_left - half)
+            y1 = min(h, y_left + half)
+            x0 = max(0, x_left - half)
+            x1 = min(w, x_left + half)
+            roi = disparity[y0:y1, x0:x1]
+            if roi.size == 0:
+                continue
+            valid = roi > 0
+            if np.any(valid):
+                disp_roi = float(np.median(roi[valid]))
+                break
+
+        # 3) NCC fallback if needed
+        if disp_roi is None:
+            left_gray = cv2.cvtColor(leftImg, cv2.COLOR_BGR2GRAY)
+            right_gray = cv2.cvtColor(rightImg, cv2.COLOR_BGR2GRAY)
+            H, W = left_gray.shape
+            patch_half = 8
+            v_margin = 2
+            disp_min = 1
+            disp_max = min(64, max(2, x_left - patch_half - 1))
+            best = None  # (corr, disparity)
+            for dy in range(-v_margin, v_margin + 1):
+                yc = y_left + dy
+                y0 = yc - patch_half
+                y1 = yc + patch_half + 1
+                xL0 = x_left - patch_half
+                xL1 = x_left + patch_half + 1
+                if y0 < 0 or y1 > H or xL0 < 0 or xL1 > W:
+                    continue
+                left_patch = left_gray[y0:y1, xL0:xL1]
+                xS0 = max(0, x_left - disp_max - patch_half)
+                xS1 = min(W, x_left - disp_min + patch_half + 1)
+                if xS1 - xS0 <= left_patch.shape[1]:
+                    continue
+                right_strip = right_gray[y0:y1, xS0:xS1]
+                res = cv2.matchTemplate(right_strip, left_patch, cv2.TM_CCOEFF_NORMED)
+                _, maxVal, _, maxLoc = cv2.minMaxLoc(res)
+                k = maxLoc[0]
+                if 1 <= k < res.shape[1] - 1:
+                    s0, s1, s2 = float(res[0, k - 1]), float(res[0, k]), float(res[0, k + 1])
+                    denom = (s0 - 2 * s1 + s2)
+                    delta = 0.0
+                    if abs(denom) > 1e-6:
+                        delta = 0.5 * (s0 - s2) / denom
+                        delta = float(np.clip(delta, -0.5, 0.5))
+                else:
+                    delta = 0.0
+                x_right_center = (xS0 + k + delta) + patch_half
+                d_ncc = float(x_left - x_right_center)
+                if best is None or maxVal > best[0]:
+                    best = (maxVal, d_ncc)
+            if best is not None and best[1] > 0.3 and best[0] >= 0.5:
+                disp_roi = best[1]
+            else:
+                # 4) Local high-res stereo fallback
+                patch = 64
+                scale = 3
+                y0 = max(0, y_left - patch // 2)
+                y1 = min(H, y_left + patch // 2)
+                x0 = max(0, x_left - patch // 2)
+                x1 = min(W, x_left + patch // 2)
+                if y1 - y0 < 10 or x1 - x0 < 10:
+                    print("No valid disparity values found around the detected point.")
+                    return
+                l_crop = left_gray[y0:y1, x0:x1]
+                r_crop = right_gray[y0:y1, x0:x1]
+                l_big = cv2.resize(l_crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+                r_big = cv2.resize(r_crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+                win = 5
+                blk = 5
+                min_disp_lr = 0
+                num_disp_lr = 64
+                stereo_lr = cv2.StereoSGBM_create(
+                    minDisparity=min_disp_lr,
+                    numDisparities=num_disp_lr,
+                    blockSize=blk,
+                    P1=8 * 1 * win ** 2,
+                    P2=32 * 1 * win ** 2,
+                    disp12MaxDiff=1,
+                    uniquenessRatio=5,
+                    speckleWindowSize=50,
+                    speckleRange=1,
+                    mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY,
+                )
+                disp_lr = stereo_lr.compute(l_big, r_big).astype(np.float32) / 16.0
+                H2, W2 = disp_lr.shape
+                cy2 = H2 // 2
+                cx2 = W2 // 2
+                m = 17
+                mh = m // 2
+                ry0 = max(0, cy2 - mh)
+                ry1 = min(H2, cy2 + mh + 1)
+                rx0 = max(0, cx2 - mh)
+                rx1 = min(W2, cx2 + mh + 1)
+                roi2 = disp_lr[ry0:ry1, rx0:rx1]
+                valid2 = roi2 > 0
+                if np.any(valid2):
+                    disp_roi = float(np.median(roi2[valid2])) / scale
+                else:
+                    print("No valid disparity values found around the detected point.")
+                    return
+
+        # Convert disparity to depth and compute coordinates
+        Z = (focal_length * baseline) / (disp_roi + 1e-6)
+        if not (z_min <= Z <= z_max):
+            print(f"Computed Z {Z:.3f}m out of range [{z_min},{z_max}], skipping.")
+            self.X_ball = self.Y_ball = self.Z_ball = None
+            return
+        cx, cy = w // 2, h // 2
+        X = (x_left - cx) * Z / focal_length
+        Y = (y_left - cy) * Z / focal_length
+        print(f"Ball coordinates in 3D (SGBM): {X}, {Y}, {Z}")
+        self.X_ball, self.Y_ball, self.Z_ball = X, Y, Z
         return
 
     
@@ -154,8 +318,11 @@ class StereoMatching:
         return disparity, filtered_disp
     
     def disparity2depth(self, disparity, display = False):
-        # Use configured parameters
-        focal_length = self.config['focal_length_px']
+        # Scale focal length to actual image width if different from configured resolution
+        focal_length_cfg = self.config['focal_length_px']
+        cfg_width = self.config.get('resolution_width', disparity.shape[1])
+        img_width = disparity.shape[1]
+        focal_length = float(focal_length_cfg) * (float(img_width) / float(cfg_width))
         baseline = self.config['baseline_m']
         z_min = self.config['z_min_m']
         z_max = self.config['z_max_m']

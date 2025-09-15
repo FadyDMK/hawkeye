@@ -2,6 +2,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+3D-models/
+autolabel/
+sample_frames/
+match.mp4
+.gitignore
+
 output_frames/
 node_modules/
 hawkeye-env/

@@ -6,6 +6,10 @@ from PIL import Image, ImageTk
 from numpy import isin
 from pyvista import wrap
 from hawkeye_pipeline import HawkeyePipeline
+
+# Add config directory to path
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
 from camera_config import load_camera_config, CameraConfigDialog
 
 class FrameSelectorApp:
@@ -131,6 +135,9 @@ class FrameSelectorApp:
     def process_current_frame(self):
         #clear previous results 
         self.results_text.delete(1.0, tk.END)
+        
+        # Clear previous ball positions for single frame processing
+        self.pipeline.clear_previous_results()
 
         #show processing status
         self.results_text.insert(tk.END, f"Processing frame {self.current_frame}...\n")

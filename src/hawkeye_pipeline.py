@@ -1,10 +1,14 @@
 from cProfile import label
 import os
-from turtle import color
+import argparse
+import sys
 import cv2
 import numpy as py
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Union, Any, Optional
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
 from camera_config import load_camera_config
 
 
@@ -12,6 +16,10 @@ class HawkeyePipeline:
     def __init__(self, config=None):
         self.config = config if config else load_camera_config()
         self.__init__components()
+        # Optional temporal smoothing for world coordinates
+        self.smoothing_enabled = bool(self.config.get("smoothing_enabled", False))
+        self.smoothing_alpha = float(self.config.get("smoothing_alpha", 0.3))
+        self._last_world = None
     
     def __init__components(self):
         from volleyball_detection import get_ball_xy
@@ -34,19 +42,44 @@ class HawkeyePipeline:
 
         self.ball_positions_camera = []
         self.ball_positions_world = []
-
-    def process_from_pair(self, left_frame, right_frame, frame_num=None, display = False):
-        # 1: Detect ball in left frame
-        left_ball_xy = self.get_ball_xy(left_frame)
-        if left_ball_xy[0] is None:
-            print("No ball detected in left frame")
-            return None, None
         
-        # 2: Stereo matching
+    def clear_previous_results(self):
+        """Clear previous frame results for single-frame processing"""
+        self.ball_positions_camera = []
+        self.ball_positions_world = []
+        # Also clear smoothing state for single-frame processing
+        self._last_world = None
+        
+    def validate_court_bounds(self, x, y, z):
+        """Validate if the ball position is within reasonable court bounds"""
+        # Court dimensions from config (with some tolerance for balls slightly outside)
+        court_width = self.config.get("court_width_m", 9.0)
+        court_length = self.config.get("court_length_m", 18.0)
+        max_height = self.config.get("max_ball_height_m", 15.0)  # Reasonable max ball height
+        
+        # Add tolerance margins (e.g., 3m beyond court edges)
+        width_tolerance = 3.0
+        length_tolerance = 3.0
+        
+        # Check bounds
+        x_valid = abs(x) <= (court_width / 2 + width_tolerance)
+        y_valid = abs(y) <= (court_length / 2 + length_tolerance)
+        z_valid = 0 <= z <= max_height
+        
+        return x_valid and y_valid and z_valid
+
+    def process_from_pair(self, left_frame, right_frame, frame_num=None, display=False, use_smoothing=None):
+        # 1: Try fast detection-based triangulation first
         from stereo_matching import StereoMatching
-        stereo_matcher = StereoMatching(left_frame, right_frame)
-        raw_disp, filtered_disp = stereo_matcher.stereo_match_SGBM(display=display)
-        stereo_matcher.calculate_3d_ball_coordinates(raw_disp)
+        stereo_matcher = StereoMatching(left_frame, right_frame, config=self.config)
+        if not stereo_matcher.try_detection_triangulation():
+            # 2: If that fails, compute disparity and fall back to robust multi-stage 3D
+            left_ball_xy = self.get_ball_xy(left_frame)
+            if left_ball_xy[0] is None:
+                print("No ball detected in left frame")
+                return None, None
+            raw_disp, filtered_disp = stereo_matcher.stereo_match_SGBM(display=display)
+            stereo_matcher.calculate_3d_ball_coordinates(raw_disp)
 
         # 3: Get ball coordinates in camera space
         camera_coords = (stereo_matcher.X_ball, stereo_matcher.Y_ball, stereo_matcher.Z_ball)
@@ -56,6 +89,25 @@ class HawkeyePipeline:
 
         # 4: Convert to world coordinates
         world_coords = self.ball_camera_to_world(camera_coords, self.t, self.R)
+        
+        # 4a: Validate court bounds - reject clearly out-of-bounds detections
+        if all(v is not None for v in world_coords):
+            if not self.validate_court_bounds(*world_coords):
+                print(f"Ball position {world_coords} is out of court bounds, rejecting")
+                world_coords = (None, None, None)
+
+        # 4b: Optional EMA smoothing on world coordinates (disabled for single-frame processing)
+        should_smooth = use_smoothing if use_smoothing is not None else self.smoothing_enabled
+        if should_smooth and self._last_world is not None:
+            if all(v is not None for v in world_coords) and all(v is not None for v in self._last_world):
+                a = self.smoothing_alpha
+                wx = self._last_world[0] + a * (world_coords[0] - self._last_world[0])
+                wy = self._last_world[1] + a * (world_coords[1] - self._last_world[1])
+                wz = self._last_world[2] + a * (world_coords[2] - self._last_world[2])
+                world_coords = (wx, wy, wz)
+        # update last only on valid and when smoothing is enabled
+        if should_smooth:
+            self._last_world = world_coords
 
         # 5: Store results
         if frame_num is not None:
@@ -135,7 +187,7 @@ class HawkeyePipeline:
         else:
             print("Invalid visualization type. Use '3d' or '2d'.")
     def _visualize_3d(self):
-        """3D visualization of court and ball"""
+        """3D visualization of court and ball (current frame only)"""
         import pyvista as pv
         import numpy as np
 
@@ -197,11 +249,23 @@ class HawkeyePipeline:
         # Create a plotter
         plotter = pv.Plotter()
 
-        # Add ball positions
-        for positions in self.ball_positions_world:
-            if positions[0] is not None:
-                sphere = pv.Sphere(radius=0.3, center=positions)
+        # Add ball position (only the most recent valid position)
+        if self.ball_positions_world:
+            # Find the most recent valid ball position
+            latest_position = None
+            for positions in reversed(self.ball_positions_world):
+                if positions[0] is not None:
+                    latest_position = positions
+                    break
+            
+            if latest_position is not None:
+                sphere = pv.Sphere(radius=0.3, center=latest_position)
                 plotter.add_mesh(sphere, color='red', show_edges=True)
+                print(f"Visualizing ball at: {latest_position}")
+            else:
+                print("No valid ball position to visualize")
+        else:
+            print("No ball positions available")
         
         plotter.add_mesh(court, color='green', opacity=0.5, show_edges=True)
         plotter.add_mesh(net, color='black', opacity=0.7, show_edges=True)
@@ -249,9 +313,9 @@ class HawkeyePipeline:
             print(f"Failed to load images for frame {frame_id}")
             return None
         
-        result = self.process_from_pair(left_img, right_img, frame_num)
+        result = self.process_from_pair(left_img, right_img, frame_num, use_smoothing=False)
         if result and isinstance(result, dict):
-            print(f"frrame {frame_num} processed successfully")
+            print(f"Frame {frame_num} processed successfully")
             print(f"Camera coords: {result['camera_coords']},\n World coords: {result['world_coords']}")
             return result
         else:
@@ -325,7 +389,27 @@ class HawkeyePipeline:
 
 
 
-        
+def _parse_args(argv: Optional[List[str]] = None):
+    parser = argparse.ArgumentParser(description="Run Hawkeye pipeline over a frame range and export results")
+    parser.add_argument("--start", type=int, default=0, help="Start frame index (inclusive)")
+    parser.add_argument("--end", type=int, default=None, help="End frame index (exclusive); defaults to all available")
+    parser.add_argument("--export", action="store_true", help="Export CSV results on completion")
+    parser.add_argument("--visualize", choices=["none", "2d", "3d"], default="none", help="Optional visualization after processing")
+    return parser.parse_args(argv)
 
-                
+
+if __name__ == "__main__":
+    args = _parse_args()
+    pipe = HawkeyePipeline()
+    pipe.process_video(start_frame=args.start, end_frame=args.end)
+    if args.export:
+        pipe.export_results()
+    if args.visualize != "none":
+        pipe.visualize_results(type=args.visualize)
+
+
+
+
+
+
 
