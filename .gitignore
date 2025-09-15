@@ -7,7 +7,7 @@ autolabel/
 sample_frames/
 match.mp4
 .gitignore
-
+output/
 output_frames/
 node_modules/
 hawkeye-env/
