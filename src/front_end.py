@@ -37,6 +37,7 @@ class FrameSelectorApp:
 
         src_dir = os.path.dirname(os.path.abspath(__file__))
         self.left_frames_dir = os.path.join(src_dir, "..", "output_frames", "left")
+        self.right_frames_dir = os.path.join(src_dir, "..", "output_frames", "right")
 
         import glob 
         self.frame_files = sorted(glob.glob(os.path.join(self.left_frames_dir, "left3_*.jpg")))
@@ -123,7 +124,7 @@ class FrameSelectorApp:
             self.left_img_label.image = left_photo
 
         #Load right image
-        right_img_path = os.path.join(self.left_frames_dir, f"right3_{frame_id}.jpg")
+        right_img_path = os.path.join(self.right_frames_dir, f"right3_{frame_id}.jpg")
         if os.path.exists(right_img_path):
             right_img = cv2.imread(right_img_path)
             right_img = cv2.cvtColor(right_img, cv2.COLOR_BGR2RGB)

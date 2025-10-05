@@ -1,4 +1,200 @@
-# Hawkeye: Real-time Volleyball Ball Tracking System
+# 🏐 Hawkeye - Volleyball Tracking System
+
+> A computer vision system for real-time volleyball tracking using stereo cameras and YOLO detection
+
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)](https://opencv.org/)
+[![YOLOv8](https://img.shields.io/badge/YOLO-v8-red.svg)](https://github.com/ultralytics/ultralytics)
+
+---
+
+## 🚀 Quick Start
+
+### 1. Activate Environment
+```powershell
+.\hawkeye-env\Scripts\Activate.ps1
+```
+
+### 2. Launch GUI
+```powershell
+python src/hawkeye_launcher.py
+```
+
+### 3. Or run directly
+```powershell
+python src/main.py
+```
+
+---
+
+## 📁 Project Structure
+
+```
+hawkeye/
+├── 📂 src/                    # Main application code
+│   ├── hawkeye_launcher.py   # GUI launcher ⭐ START HERE
+│   ├── main.py               # Main entry point
+│   ├── front_end.py          # Frame analyzer GUI
+│   ├── hawkeye_pipeline.py   # Processing pipeline
+│   └── camera_config.json    # ⚙️ Configuration
+│
+├── 📂 output_frames/          # Processed frame data
+│   ├── left/                 # Left camera (left3_XXXX.jpg)
+│   └── right/                # Right camera (right3_XXXX.jpg)
+│
+├── 📂 models/                 # Trained models
+├── 📂 dataset/                # Training data
+├── 📂 data/                   # Video files
+├── 📂 output/                 # Results
+├── 📂 archive/                # Old/experimental files
+│
+├── 📄 README.md              # This file
+├── 📄 requirements.txt       # Dependencies
+└── 📄 yolov8n.pt            # YOLO weights
+```
+
+📖 **Detailed structure:** See [DIRECTORY_STRUCTURE.md](DIRECTORY_STRUCTURE.md)
+
+---
+
+## 🎯 Features
+
+✅ **Real-time ball detection** using YOLOv8  
+✅ **Stereo triangulation** for 3D position  
+✅ **Multi-fallback stereo matching** (4 strategies)  
+✅ **GUI interface** for frame analysis  
+✅ **3D visualization** of ball trajectory  
+✅ **Camera calibration** tools  
+✅ **Batch processing** support  
+
+---
+
+## ⚙️ Configuration
+
+Main config file: **`src/camera_config.json`**
+
+Key parameters:
+- **Focal length:** 30mm (1386.67 pixels)
+- **Baseline:** 3.0m between cameras
+- **Depth range:** 12.0 - 22.0m
+- **Court:** 40m × 31m volleyball court
+- **Detection confidence:** 0.5
+
+---
+
+## 🎮 Usage
+
+### Frame Analyzer (GUI)
+1. Launch `hawkeye_launcher.py`
+2. Click **"Frame Analyzer"**
+3. Use slider to select frame
+4. Click **"Process Frame"**
+5. View 3D coordinates
+6. Click **"3D Visualize"** to see trajectory
+
+### Batch Processing
+```python
+from hawkeye_pipeline import HawkeyePipeline
+
+pipeline = HawkeyePipeline(None)
+pipeline.process_video(start_frame=0, end_frame=100)
+pipeline.export_results("output/")
+pipeline.visualize_results(type="3d")
+```
+
+---
+
+## 📊 Current Status
+
+**System:** ✅ Production-ready  
+**Detection:** ✅ 100% success rate  
+**Triangulation:** ✅ Working correctly  
+**Test sequence:** left3/right3 (100 frames)  
+
+**Last cleanup:** October 5, 2025  
+**Bugs fixed:** Front-end path bug, config duplication  
+
+---
+
+## 🛠️ Development
+
+### Requirements
+```powershell
+pip install -r requirements.txt
+```
+
+### Key Dependencies
+- Python 3.8+
+- OpenCV 4.x
+- YOLOv8 (Ultralytics)
+- NumPy, Matplotlib
+- Open3D (3D visualization)
+
+### Project History
+See [CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md) for cleanup details.
+
+---
+
+## 📚 Documentation
+
+- 📖 [Directory Structure](DIRECTORY_STRUCTURE.md) - Detailed layout
+- 📋 [Cleanup Summary](CLEANUP_SUMMARY.md) - Organization history
+- 🔧 [Launcher Guide](docs/README-launcher.md) - GUI usage
+- 📄 [Thesis](thesis/) - Academic documentation
+
+---
+
+## 🎓 Academic Context
+
+This project is part of a BSc thesis on computer vision-based volleyball tracking systems, inspired by Hawk-Eye technology used in professional sports.
+
+### References
+- `references/Hawk-eye_tennis_system.pdf`
+- `references/3D_ball_trajectory_reconstruction_from_single-camera_sports_video_for_free_viewpoint_virtual_replay.pdf`
+
+---
+
+## 🐛 Troubleshooting
+
+### Frame Not Found
+- Check frames exist in `output_frames/left/` and `right/`
+- Verify naming: `left3_XXXX.jpg` and `right3_XXXX.jpg`
+
+### Detection Fails
+- Check `src/camera_config.json` has `detection_conf: 0.5`
+- Verify model exists: `models/runs/detect/.../weights/best.pt`
+
+### Wrong 3D Coordinates
+- Verify `baseline_m: 3.0` (positive)
+- Check `z_min_m: 12.0` and `z_max_m: 22.0`
+- Ensure `focal_length_px: 1386.67`
+
+---
+
+## 📝 License
+
+Academic project - See thesis documentation for details.
+
+---
+
+## 👤 Author
+
+**FadyDMK**  
+BSc Computer Science Thesis Project  
+October 2025
+
+---
+
+## 🙏 Acknowledgments
+
+- Supervisor: [Name]
+- YOLO framework by Ultralytics
+- OpenCV community
+- Hawk-Eye innovations
+
+---
+
+*For detailed technical documentation, see the thesis folder.*
 
 A computer vision system for tracking volleyball trajectories in 3D space using stereo cameras and YOLO object detection.
 

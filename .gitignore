@@ -12,6 +12,8 @@ output_frames/
 node_modules/
 hawkeye-env/
 
+CLEANUP_*
+
 runs/
 runs/detects/
 plan.txt
