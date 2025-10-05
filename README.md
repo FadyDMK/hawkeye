@@ -185,15 +185,6 @@ October 2025
 
 ---
 
-## 🙏 Acknowledgments
-
-- Supervisor: [Name]
-- YOLO framework by Ultralytics
-- OpenCV community
-- Hawk-Eye innovations
-
----
-
 *For detailed technical documentation, see the thesis folder.*
 
 A computer vision system for tracking volleyball trajectories in 3D space using stereo cameras and YOLO object detection.
