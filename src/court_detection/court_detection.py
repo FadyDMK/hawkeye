@@ -224,7 +224,7 @@ else:
     ball_world_3d = []
     
     for pos in ball_camera:
-        ball_world_3d.append(ball_camera_to_world(pos, t, R))
+        ball_world_3d.append(ball_camera_to_world(pos, t, R, scale=None))
     
     print("Ball positions (X, Y, Z):", ball_world_3d)
 

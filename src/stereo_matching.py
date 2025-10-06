@@ -47,6 +47,10 @@ class StereoMatching:
         z_min = self.config.get('z_min_m', 15.0)
         z_max = self.config.get('z_max_m', 40.0)
 
+        # Disparity calculation: Even though Blender cameras have Y-axis baseline,
+        # the rendered stereo images show HORIZONTAL disparity (X-axis)
+        # This is because cameras point at the scene from different Y positions,
+        # creating horizontal parallax in the image plane.
         d = float(x_left - x_right)
         if d <= 0.5:
             return False
@@ -85,6 +89,7 @@ class StereoMatching:
         # 1) Try detection-based disparity using right image
         x_right, y_right = get_ball_xy(rightImg)
         if x_right is not None and y_right is not None:
+            # Use horizontal disparity (X-axis) - cameras create horizontal parallax
             d = float(x_left - x_right)
             if d > 0.5:
                 Z = (focal_length * baseline) / (d + 1e-6)

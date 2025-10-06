@@ -24,9 +24,12 @@ class CameraConfigDialog:
             'z_max_m': 40.0,
             
             # Court parameters
-            'court_length_m': 18.0,  # Standard volleyball court length
-            'court_width_m': 9.0,    # Standard volleyball court width
-            'net_height_m': 2.43,    # Standard volleyball net height (men's)
+            'court_length_m': 15.9,
+            'court_width_m': 7.6,
+            'net_height_m': 2.43,
+            'court_center_x': -0.0313,
+            'court_center_y': -4.5004,
+            'court_center_z': 0.0148,
             
             # Stereo matching parameters
             'sgbm_window_size': 5,
@@ -41,6 +44,7 @@ class CameraConfigDialog:
             'wls_lambda': 5000.0,
             'wls_sigma': 1.0
         }
+        self.default_config = dict(self.config)
         
         self.result = None
         self.create_widgets()
@@ -138,22 +142,36 @@ class CameraConfigDialog:
         self.court_length_var = tk.DoubleVar(value=self.config['court_length_m'])
         ttk.Entry(parent, textvariable=self.court_length_var, width=15).grid(row=1, column=1, sticky="w", padx=(10, 0))
         ttk.Label(parent, text="Standard: 18m", font=("Arial", 8)).grid(row=1, column=2, sticky="w", padx=(10, 0))
-        
+
         ttk.Label(parent, text="Court Width (m):").grid(row=2, column=0, sticky="w", pady=2)
         self.court_width_var = tk.DoubleVar(value=self.config['court_width_m'])
         ttk.Entry(parent, textvariable=self.court_width_var, width=15).grid(row=2, column=1, sticky="w", padx=(10, 0))
         ttk.Label(parent, text="Standard: 9m", font=("Arial", 8)).grid(row=2, column=2, sticky="w", padx=(10, 0))
-        
+
         ttk.Label(parent, text="Net Height (m):").grid(row=3, column=0, sticky="w", pady=2)
         self.net_height_var = tk.DoubleVar(value=self.config['net_height_m'])
         ttk.Entry(parent, textvariable=self.net_height_var, width=15).grid(row=3, column=1, sticky="w", padx=(10, 0))
         ttk.Label(parent, text="Men's: 2.43m, Women's: 2.24m", font=("Arial", 8)).grid(row=3, column=2, sticky="w", padx=(10, 0))
         
+        ttk.Label(parent, text="Court Center Offset (m)", font=("Arial", 12, "bold")).grid(row=4, column=0, columnspan=2, sticky="w", pady=(20, 5))
+
+        ttk.Label(parent, text="Center X:").grid(row=5, column=0, sticky="w", pady=2)
+        self.court_center_x_var = tk.DoubleVar(value=self.config.get('court_center_x', 0.0))
+        ttk.Entry(parent, textvariable=self.court_center_x_var, width=15).grid(row=5, column=1, sticky="w", padx=(10, 0))
+
+        ttk.Label(parent, text="Center Y:").grid(row=6, column=0, sticky="w", pady=2)
+        self.court_center_y_var = tk.DoubleVar(value=self.config.get('court_center_y', 0.0))
+        ttk.Entry(parent, textvariable=self.court_center_y_var, width=15).grid(row=6, column=1, sticky="w", padx=(10, 0))
+
+        ttk.Label(parent, text="Center Z:").grid(row=7, column=0, sticky="w", pady=2)
+        self.court_center_z_var = tk.DoubleVar(value=self.config.get('court_center_z', 0.0))
+        ttk.Entry(parent, textvariable=self.court_center_z_var, width=15).grid(row=7, column=1, sticky="w", padx=(10, 0))
+        
         # Preset buttons
-        ttk.Label(parent, text="Presets", font=("Arial", 12, "bold")).grid(row=4, column=0, columnspan=2, sticky="w", pady=(20, 5))
+        ttk.Label(parent, text="Presets", font=("Arial", 12, "bold")).grid(row=8, column=0, columnspan=2, sticky="w", pady=(20, 5))
         
         preset_frame = ttk.Frame(parent)
-        preset_frame.grid(row=5, column=0, columnspan=3, sticky="w", pady=5)
+        preset_frame.grid(row=9, column=0, columnspan=3, sticky="w", pady=5)
         
         ttk.Button(preset_frame, text="Men's Standard", command=self.set_mens_court).pack(side="left", padx=(0, 5))
         ttk.Button(preset_frame, text="Women's Standard", command=self.set_womens_court).pack(side="left", padx=(0, 5))
@@ -219,25 +237,30 @@ class CameraConfigDialog:
         self.net_height_var.set(2.24)
     
     def reset_defaults(self):
-        self.focal_length_var.set(26.0)
-        self.sensor_width_var.set(36.0)
-        self.res_width_var.set(1920)
-        self.res_height_var.set(1080)
-        self.baseline_var.set(3.0)
-        self.z_min_var.set(15.0)
-        self.z_max_var.set(40.0)
-        self.court_length_var.set(18.0)
-        self.court_width_var.set(9.0)
-        self.net_height_var.set(2.43)
-        self.window_size_var.set(5)
-        self.block_size_var.set(5)
-        self.min_disp_var.set(-1)
-        self.num_disp_factor_var.set(16)
-        self.uniqueness_var.set(15)
-        self.speckle_window_var.set(50)
-        self.speckle_range_var.set(10)
-        self.wls_lambda_var.set(5000.0)
-        self.wls_sigma_var.set(1.0)
+        defaults = self.default_config
+
+        self.focal_length_var.set(defaults['focal_length_mm'])
+        self.sensor_width_var.set(defaults['sensor_width_mm'])
+        self.res_width_var.set(defaults['resolution_width'])
+        self.res_height_var.set(defaults['resolution_height'])
+        self.baseline_var.set(defaults['baseline_m'])
+        self.z_min_var.set(defaults['z_min_m'])
+        self.z_max_var.set(defaults['z_max_m'])
+        self.court_length_var.set(defaults['court_length_m'])
+        self.court_width_var.set(defaults['court_width_m'])
+        self.net_height_var.set(defaults['net_height_m'])
+        self.court_center_x_var.set(defaults.get('court_center_x', 0.0))
+        self.court_center_y_var.set(defaults.get('court_center_y', 0.0))
+        self.court_center_z_var.set(defaults.get('court_center_z', 0.0))
+        self.window_size_var.set(defaults['sgbm_window_size'])
+        self.block_size_var.set(defaults['sgbm_block_size'])
+        self.min_disp_var.set(defaults['sgbm_min_disp'])
+        self.num_disp_factor_var.set(defaults['sgbm_num_disp_factor'])
+        self.uniqueness_var.set(defaults['sgbm_uniqueness_ratio'])
+        self.speckle_window_var.set(defaults['sgbm_speckle_window_size'])
+        self.speckle_range_var.set(defaults['sgbm_speckle_range'])
+        self.wls_lambda_var.set(defaults['wls_lambda'])
+        self.wls_sigma_var.set(defaults['wls_sigma'])
     
     def save_config(self):
         try:
@@ -253,6 +276,9 @@ class CameraConfigDialog:
                 'court_length_m': self.court_length_var.get(),
                 'court_width_m': self.court_width_var.get(),
                 'net_height_m': self.net_height_var.get(),
+                'court_center_x': self.court_center_x_var.get(),
+                'court_center_y': self.court_center_y_var.get(),
+                'court_center_z': self.court_center_z_var.get(),
                 'sgbm_window_size': self.window_size_var.get(),
                 'sgbm_block_size': self.block_size_var.get(),
                 'sgbm_min_disp': self.min_disp_var.get(),
@@ -289,6 +315,12 @@ class CameraConfigDialog:
                 with open(config_path, 'r') as f:
                     saved_config = json.load(f)
                     self.config.update(saved_config)
+                    for key, value in {
+                        'court_center_x': -0.0313,
+                        'court_center_y': -4.5004,
+                        'court_center_z': 0.0148,
+                    }.items():
+                        self.config.setdefault(key, value)
                     
                 # Update GUI with loaded values
                 self.focal_length_var.set(self.config['focal_length_mm'])
@@ -301,6 +333,9 @@ class CameraConfigDialog:
                 self.court_length_var.set(self.config['court_length_m'])
                 self.court_width_var.set(self.config['court_width_m'])
                 self.net_height_var.set(self.config['net_height_m'])
+                self.court_center_x_var.set(self.config.get('court_center_x', 0.0))
+                self.court_center_y_var.set(self.config.get('court_center_y', 0.0))
+                self.court_center_z_var.set(self.config.get('court_center_z', 0.0))
                 
         except Exception as e:
             print(f"Could not load config: {e}")
@@ -320,6 +355,12 @@ def load_camera_config():
                 # Calculate focal length in pixels if not present
                 if 'focal_length_px' not in config:
                     config['focal_length_px'] = (config['focal_length_mm'] * config['resolution_width']) / config['sensor_width_mm']
+                for key, value in {
+                    'court_center_x': -0.0313,
+                    'court_center_y': -4.5004,
+                    'court_center_z': 0.0148,
+                }.items():
+                    config.setdefault(key, value)
                 return config
     except Exception as e:
         print(f"Error loading config: {e}")
@@ -333,9 +374,12 @@ def load_camera_config():
         'baseline_m': 3.0,
         'z_min_m': 15.0,
         'z_max_m': 40.0,
-        'court_length_m': 31.2,
-        'court_width_m': 15.1,
-        'net_height_m': 2.43,
+    'court_length_m': 15.9,
+    'court_width_m': 7.6,
+    'net_height_m': 2.43,
+    'court_center_x': -0.0313,
+    'court_center_y': -4.5004,
+    'court_center_z': 0.0148,
         'sgbm_window_size': 5,
         'sgbm_block_size': 5,
         'sgbm_min_disp': -1,

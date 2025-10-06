@@ -10,7 +10,10 @@ _MODEL = None
 
 def _load_detection_settings():
     """Load model path and thresholds from camera_config.json if present."""
-    cfg_path = Path(__file__).parent.parent / "config" / "camera_config.json"
+    # Try src/camera_config.json first, then config/camera_config.json
+    cfg_path = Path(__file__).parent / "camera_config.json"
+    if not cfg_path.exists():
+        cfg_path = Path(__file__).parent.parent / "config" / "camera_config.json"
     defaults = {
         "detection_model_path": str(Path(__file__).parent.parent / "runs" / "detect" / "train18" / "weights" / "best.pt"),
     "detection_conf": 0.5,
@@ -45,14 +48,19 @@ def _get_model():
         # Try configured weights; fallback to local yolov8n.pt or default if not found/failed
         try:
             if weights.exists():
+                print(f"[volleyball_detection] Loading model from: {weights}")
                 _MODEL = YOLO(str(weights))
+                print(f"[volleyball_detection] Model loaded successfully: {_MODEL.names}")
             else:
                 raise FileNotFoundError(str(weights))
-        except Exception:
+        except Exception as e:
+            print(f"[volleyball_detection] Failed to load {weights}: {e}")
             fallback_local = Path(__file__).parent.parent / "yolov8n.pt"
             try:
+                print(f"[volleyball_detection] Falling back to: {fallback_local}")
                 _MODEL = YOLO(str(fallback_local if fallback_local.exists() else "yolov8n.pt"))
-            except Exception:
+            except Exception as e2:
+                print(f"[volleyball_detection] Fallback failed: {e2}, using yolov8n.pt")
                 # Last resort: try tiny model name
                 _MODEL = YOLO("yolov8n.pt")
     return _MODEL

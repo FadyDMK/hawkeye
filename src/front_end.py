@@ -35,6 +35,8 @@ class FrameSelectorApp:
 
         self.pipeline = HawkeyePipeline(self.config)
 
+        # Use pre-extracted frames from output_frames folder
+        # These frames are extracted from the MKV videos (newnewLeft.mkv, newnewRight.mkv)
         src_dir = os.path.dirname(os.path.abspath(__file__))
         self.left_frames_dir = os.path.join(src_dir, "..", "output_frames", "left")
         self.right_frames_dir = os.path.join(src_dir, "..", "output_frames", "right")
@@ -113,7 +115,7 @@ class FrameSelectorApp:
     def load_frame(self, frame_num):
         frame_id = f"{frame_num:04d}"
 
-        #Load left image
+        # Load left image from pre-extracted frames
         left_img_path = os.path.join(self.left_frames_dir, f"left3_{frame_id}.jpg")
         if os.path.exists(left_img_path):
             left_img = cv2.imread(left_img_path)
@@ -122,8 +124,8 @@ class FrameSelectorApp:
             left_photo = ImageTk.PhotoImage(image=Image.fromarray(left_img))
             self.left_img_label.config(image=left_photo)
             self.left_img_label.image = left_photo
-
-        #Load right image
+        
+        # Load right image from pre-extracted frames
         right_img_path = os.path.join(self.right_frames_dir, f"right3_{frame_id}.jpg")
         if os.path.exists(right_img_path):
             right_img = cv2.imread(right_img_path)
