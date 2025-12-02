@@ -18,20 +18,8 @@ class FrameSelectorApp:
         self.root.title("Hawkeye - Frame Analyzer")
         self.root.geometry("1200x800")
 
-        # Load camera configuration
+        # Load camera configuration (should already exist at this point)
         self.config = load_camera_config()
-        
-        # Check if configuration exists, if not prompt user
-        if not os.path.exists(os.path.join(os.path.dirname(__file__), "camera_config.json")):
-            result = messagebox.askyesno("Configuration Missing", 
-                                       "Camera configuration not found. Would you like to set it up now?")
-            if result:
-                dialog = CameraConfigDialog(self.root)
-                config = dialog.get_config()
-                if config:
-                    self.config = config
-                else:
-                    messagebox.showinfo("Using Defaults", "Using default configuration values.")
 
         self.pipeline = HawkeyePipeline(self.config)
 
@@ -163,6 +151,25 @@ class FrameSelectorApp:
         self.pipeline.visualize_results(type="3d")
 
 if __name__ == "__main__":
+    # Check for config BEFORE creating the main window
+    config_path = os.path.join(os.path.dirname(__file__), "camera_config.json")
+    
+    if not os.path.exists(config_path):
+        # Create a temporary root just for the dialog
+        temp_root = tk.Tk()
+        temp_root.withdraw()  # Hide it completely
+        
+        result = messagebox.askyesno("Configuration Missing", 
+                                   "Camera configuration not found. Would you like to set it up now?")
+        if result:
+            dialog = CameraConfigDialog(temp_root)
+            config = dialog.get_config()
+            if not config:
+                messagebox.showinfo("Using Defaults", "Using default configuration values.")
+        
+        temp_root.destroy()  # Destroy the temporary root
+    
+    # NOW create the actual main window
     root = tk.Tk()
     app = FrameSelectorApp(root)
     root.mainloop()

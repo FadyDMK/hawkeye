@@ -5,10 +5,19 @@ import os
 
 class CameraConfigDialog:
     def __init__(self, parent=None):
-        self.root = tk.Toplevel(parent) if parent else tk.Tk()
+        if parent:
+            self.root = tk.Toplevel(parent)
+        else:
+            self.root = tk.Tk()
+        
         self.root.title("Camera & Court Configuration")
         self.root.geometry("500x600")
         self.root.configure(padx=20, pady=20)
+        
+        # Make dialog modal (do this before creating widgets)
+        if parent:
+            self.root.transient(parent)
+            self.root.grab_set()
         
         # Configuration values
         self.config = {
@@ -49,10 +58,6 @@ class CameraConfigDialog:
         self.result = None
         self.create_widgets()
         self.load_config()
-        
-        # Make dialog modal
-        self.root.transient(parent)
-        self.root.grab_set()
         
     def create_widgets(self):
         # Create notebook for tabs

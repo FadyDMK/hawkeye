@@ -294,19 +294,47 @@ class HawkeyePipeline:
         # Create a plotter
         plotter = pv.Plotter()
 
-        # Add ball position (only the most recent valid position)
+        # Add ball trajectory (all valid positions)
         if self.ball_positions_world:
-            # Find the most recent valid ball position
-            latest_position = None
-            for positions in reversed(self.ball_positions_world):
+            # Collect all valid ball positions
+            valid_positions = []
+            for positions in self.ball_positions_world:
                 if positions[0] is not None:
-                    latest_position = positions
-                    break
+                    valid_positions.append(positions)
             
-            if latest_position is not None:
-                sphere = pv.Sphere(radius=0.3, center=latest_position)
-                plotter.add_mesh(sphere, color='red', show_edges=True)
-                print(f"Visualizing ball at: {latest_position}")
+            if valid_positions:
+                # Convert to numpy array for easier handling
+                trajectory = np.array(valid_positions)
+                
+                # Draw trajectory line
+                if len(trajectory) > 1:
+                    line = pv.Line(trajectory[0], trajectory[-1])
+                    # Create spline through all points
+                    points = pv.PolyData(trajectory)
+                    spline = points.delaunay_2d()
+                    
+                    # Simple line through points
+                    trajectory_line = pv.Spline(trajectory, len(trajectory))
+                    plotter.add_mesh(trajectory_line, color='yellow', line_width=3, label='Ball Trajectory')
+                
+                # Draw ball positions as small spheres
+                for i, pos in enumerate(trajectory):
+                    # Make start and end positions more visible
+                    if i == 0:
+                        # Start position - green
+                        sphere = pv.Sphere(radius=0.15, center=pos)
+                        plotter.add_mesh(sphere, color='lime', label='Start')
+                    elif i == len(trajectory) - 1:
+                        # End position - red
+                        sphere = pv.Sphere(radius=0.15, center=pos)
+                        plotter.add_mesh(sphere, color='red', label='End')
+                    else:
+                        # Intermediate positions - small blue spheres
+                        if i % 5 == 0:  # Show every 5th frame to avoid clutter
+                            sphere = pv.Sphere(radius=0.08, center=pos)
+                            plotter.add_mesh(sphere, color='cyan', opacity=0.6)
+                
+                print(f"Visualizing {len(valid_positions)} ball positions")
             else:
                 print("No valid ball position to visualize")
         else:
@@ -326,6 +354,45 @@ class HawkeyePipeline:
         # Setup view
         plotter.add_axes()
         plotter.show_grid()
+
+        # Add camera view buttons
+        def view_topdown():
+            """Top-down view looking straight down at court"""
+            plotter.view_xy()
+            plotter.camera.zoom(1.2)
+        
+        def view_side():
+            """Side view looking along the court length"""
+            plotter.view_xz()
+            plotter.camera.zoom(1.2)
+        
+        def view_end():
+            """End view looking across court width"""
+            plotter.view_yz()
+            plotter.camera.zoom(1.2)
+        
+        def view_perspective():
+            """Perspective/3D view"""
+            plotter.camera_position = [
+                (25.0, -15.0, 10.0),  # camera position
+                tuple(court_center.tolist()),  # focal point (look at court center)
+                (0.0, 0.0, 1.0)  # up direction
+            ]
+        
+        def view_player():
+            """Player perspective from court side"""
+            plotter.camera_position = [
+                (0.0, -15.0, 1.8),  # camera position (player height)
+                (0.0, 0.0, 2.0),  # focal point (look at net height)
+                (0.0, 0.0, 1.0)  # up direction
+            ]
+
+        # Add buttons to toolbar
+        plotter.add_key_event('t', view_topdown)  # Press 't' for top-down
+        plotter.add_key_event('s', view_side)     # Press 's' for side
+        plotter.add_key_event('e', view_end)      # Press 'e' for end
+        plotter.add_key_event('p', view_perspective)  # Press 'p' for perspective
+        plotter.add_key_event('v', view_player)   # Press 'v' for player view
 
         # Align the PyVista camera with the real left-camera pose so the court
         # visuals match the input video orientation.
@@ -351,6 +418,21 @@ class HawkeyePipeline:
             tuple(focal_point.tolist()),
             tuple(camera_up.tolist())
         ]
+        
+        # Add text with keyboard shortcuts
+        plotter.add_text(
+            "Keyboard Shortcuts:\n"
+            "T - Top-down view\n"
+            "S - Side view\n"
+            "E - End view\n"
+            "P - Perspective view\n"
+            "V - Player view\n"
+            "R - Reset camera",
+            position='upper_left',
+            font_size=10,
+            color='white'
+        )
+        
         plotter.show()
 
     def process_single_frame(self, frame_num):

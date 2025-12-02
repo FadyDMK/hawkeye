@@ -71,7 +71,7 @@ class HawkeyeLauncher:
         version_label.pack(side="right")
     
     def launch_configuration(self):
-        # Open configuration in a child window without closing launcher
+        # Open configuration dialog
         try:
             import sys
             import os
@@ -80,10 +80,10 @@ class HawkeyeLauncher:
         except Exception as e:
             messagebox.showerror("Error", f"Cannot open configuration: {e}")
             return
-        top = tk.Toplevel(self.root)
-        top.title("Camera & Court Configuration")
-        # CameraConfigDialog is expected to manage its own layout/events
-        CameraConfigDialog(top)
+        
+        # Pass the main root - CameraConfigDialog will create its own Toplevel
+        dialog = CameraConfigDialog(self.root)
+        dialog.get_config()  # Wait for dialog to close
 
     def _run_script(self, script_name: str):
         """Launch a Python script as a separate process, keeping launcher open."""
@@ -114,12 +114,8 @@ class HawkeyeLauncher:
             self._run_script("front_end.py")
     
     def launch_video_processor(self):
-        # Placeholder for future full-video processor GUI
-        messagebox.showinfo(
-            "Coming Soon",
-            "The full video processing interface is under development.\n\n"
-            "You can currently process frames using the Frame Analyzer."
-        )
+        # Launch the video processor GUI
+        self._run_script("video_processor_gui.py")
 if __name__ == "__main__":
     root = tk.Tk()
     app = HawkeyeLauncher(root)
