@@ -10,21 +10,45 @@ class VideoProcessorGUI:
         self.root = root
         self.root.title("Hawkeye - Video Processor")
         self.root.state('zoomed')  # Maximize window on Windows
-        self.root.configure(padx=20, pady=20)
         
         self.config = load_camera_config()
         self.pipeline = HawkeyePipeline(self.config)
         
         self.processing = False
+        self.left_offset = 0
+        self.right_offset = 0
         self.create_widgets()
         
     def create_widgets(self):
+        # Create main canvas with scrollbar
+        main_canvas = tk.Canvas(self.root)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=main_canvas.yview)
+        scrollable_frame = ttk.Frame(main_canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all"))
+        )
+        
+        main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        main_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        main_canvas.pack(side="left", fill="both", expand=True, padx=(20, 0), pady=20)
+        scrollbar.pack(side="right", fill="y", pady=20)
+        
+        # Enable mousewheel scrolling
+        def on_mousewheel(event):
+            main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        main_canvas.bind_all("<MouseWheel>", on_mousewheel)
+        
+        # Now use scrollable_frame as parent for all widgets
         # Title
-        title_label = ttk.Label(self.root, text="Process Complete Video", font=("Arial", 16, "bold"))
+        title_label = ttk.Label(scrollable_frame, text="Process Complete Video", font=("Arial", 16, "bold"))
         title_label.pack(pady=10)
         
         # Video file selection
-        video_frame = ttk.LabelFrame(self.root, text="Video Files", padding=10)
+        video_frame = ttk.LabelFrame(scrollable_frame, text="Video Files", padding=10)
         video_frame.pack(fill="x", pady=10)
         
         # Left video
@@ -43,8 +67,76 @@ class VideoProcessorGUI:
         ttk.Entry(right_frame, textvariable=self.right_video_var, width=40).pack(side="left", fill="x", expand=True)
         ttk.Button(right_frame, text="Browse", command=lambda: self.browse_video("right")).pack(side="left", padx=(5, 0))
         
+        # Synchronization controls
+        sync_frame = ttk.LabelFrame(scrollable_frame, text="Video Synchronization", padding=10)
+        sync_frame.pack(fill="x", pady=10)
+        
+        # Preview frame slider
+        preview_slider_frame = ttk.Frame(sync_frame)
+        preview_slider_frame.pack(fill="x", pady=5)
+        ttk.Label(preview_slider_frame, text="Preview Frame:").pack(side="left", padx=(0, 10))
+        self.preview_frame_var = tk.IntVar(value=0)
+        self.preview_slider = ttk.Scale(
+            preview_slider_frame,
+            from_=0,
+            to=100,
+            orient="horizontal",
+            variable=self.preview_frame_var,
+            command=self.on_preview_change
+        )
+        self.preview_slider.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.preview_frame_label = ttk.Label(preview_slider_frame, text="0", width=5)
+        self.preview_frame_label.pack(side="left")
+        ttk.Button(preview_slider_frame, text="Load Preview", command=self.load_preview).pack(side="left", padx=(10, 0))
+        
+        # Left video offset
+        left_sync_frame = ttk.Frame(sync_frame)
+        left_sync_frame.pack(fill="x", pady=2)
+        ttk.Label(left_sync_frame, text="Left Offset:").pack(side="left", padx=(0, 10))
+        self.left_offset_var = tk.IntVar(value=0)
+        self.left_offset_slider = ttk.Scale(
+            left_sync_frame,
+            from_=-100,
+            to=100,
+            orient="horizontal",
+            variable=self.left_offset_var,
+            command=self.on_sync_change
+        )
+        self.left_offset_slider.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.left_offset_label = ttk.Label(left_sync_frame, text="0", width=5)
+        self.left_offset_label.pack(side="left")
+        ttk.Button(left_sync_frame, text="Reset", command=lambda: self.reset_offset('left')).pack(side="left", padx=(5, 0))
+        
+        # Right video offset
+        right_sync_frame = ttk.Frame(sync_frame)
+        right_sync_frame.pack(fill="x", pady=2)
+        ttk.Label(right_sync_frame, text="Right Offset:").pack(side="left", padx=(0, 10))
+        self.right_offset_var = tk.IntVar(value=0)
+        self.right_offset_slider = ttk.Scale(
+            right_sync_frame,
+            from_=-100,
+            to=100,
+            orient="horizontal",
+            variable=self.right_offset_var,
+            command=self.on_sync_change
+        )
+        self.right_offset_slider.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.right_offset_label = ttk.Label(right_sync_frame, text="0", width=5)
+        self.right_offset_label.pack(side="left")
+        ttk.Button(right_sync_frame, text="Reset", command=lambda: self.reset_offset('right')).pack(side="left", padx=(5, 0))
+        
+        # Preview images frame
+        preview_images_frame = ttk.Frame(sync_frame)
+        preview_images_frame.pack(fill="both", expand=True, pady=10)
+        
+        self.left_preview_label = ttk.Label(preview_images_frame, text="Left Preview\n(Load videos first)")
+        self.left_preview_label.pack(side="left", fill="both", expand=True, padx=5)
+        
+        self.right_preview_label = ttk.Label(preview_images_frame, text="Right Preview\n(Load videos first)")
+        self.right_preview_label.pack(side="right", fill="both", expand=True, padx=5)
+        
         # Frame range selection
-        range_frame = ttk.LabelFrame(self.root, text="Frame Range", padding=10)
+        range_frame = ttk.LabelFrame(scrollable_frame, text="Frame Range", padding=10)
         range_frame.pack(fill="x", pady=10)
         
         # Start frame
@@ -63,7 +155,7 @@ class VideoProcessorGUI:
         ttk.Label(end_frame, text="(Leave 'All' for entire video)", font=("Arial", 9)).pack(side="left", padx=(10, 0))
         
         # Progress section
-        progress_frame = ttk.LabelFrame(self.root, text="Progress", padding=10)
+        progress_frame = ttk.LabelFrame(scrollable_frame, text="Progress", padding=10)
         progress_frame.pack(fill="both", expand=True, pady=10)
         
         # Progress label
@@ -78,7 +170,7 @@ class VideoProcessorGUI:
         self.status_text.pack(fill="both", expand=True)
         
         # Buttons
-        button_frame = ttk.Frame(self.root)
+        button_frame = ttk.Frame(scrollable_frame)
         button_frame.pack(fill="x", pady=10)
         
         self.process_btn = ttk.Button(button_frame, text="Start Processing", command=self.start_processing)
@@ -103,6 +195,124 @@ class VideoProcessorGUI:
                 self.left_video_var.set(filename)
             else:
                 self.right_video_var.set(filename)
+    
+    def load_preview(self):
+        """Load preview frames from videos"""
+        left_video = self.left_video_var.get()
+        right_video = self.right_video_var.get()
+        
+        # Check if using videos
+        if left_video == "Use pre-extracted frames" or right_video == "Use pre-extracted frames":
+            messagebox.showinfo("Info", "Please select both video files first")
+            return
+        
+        if not os.path.exists(left_video) or not os.path.exists(right_video):
+            messagebox.showerror("Error", "Video files not found")
+            return
+        
+        try:
+            import cv2
+            
+            # Open video captures
+            self.left_cap = cv2.VideoCapture(left_video)
+            self.right_cap = cv2.VideoCapture(right_video)
+            
+            if not self.left_cap.isOpened() or not self.right_cap.isOpened():
+                messagebox.showerror("Error", "Failed to open video files")
+                return
+            
+            # Update preview slider max
+            total_frames = int(self.left_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.preview_slider.config(to=total_frames - 1)
+            
+            # Show first frame
+            self.update_preview()
+            
+            messagebox.showinfo("Success", f"Videos loaded! Total frames: {total_frames}\nUse preview slider to find sync point")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load videos: {str(e)}")
+    
+    def reset_offset(self, side):
+        """Reset offset for left or right video"""
+        if side == 'left':
+            self.left_offset_var.set(0)
+            self.left_offset = 0
+            self.left_offset_label.config(text="0")
+        else:
+            self.right_offset_var.set(0)
+            self.right_offset = 0
+            self.right_offset_label.config(text="0")
+        self.update_preview()
+    
+    def on_sync_change(self, value):
+        """Handle synchronization offset changes"""
+        self.left_offset = int(self.left_offset_var.get())
+        self.right_offset = int(self.right_offset_var.get())
+        
+        self.left_offset_label.config(text=str(self.left_offset))
+        self.right_offset_label.config(text=str(self.right_offset))
+        
+        self.update_preview()
+    
+    def on_preview_change(self, value):
+        """Handle preview slider change"""
+        frame_num = int(float(value))
+        self.preview_frame_label.config(text=str(frame_num))
+        self.update_preview()
+    
+    def update_preview(self):
+        """Update preview images with current offsets"""
+        if not hasattr(self, 'left_cap') or not hasattr(self, 'right_cap'):
+            return
+        
+        if not self.left_cap.isOpened() or not self.right_cap.isOpened():
+            return
+        
+        try:
+            import cv2
+            from PIL import Image, ImageTk, ImageDraw
+            
+            base_frame = self.preview_frame_var.get()
+            left_frame_num = base_frame + self.left_offset
+            right_frame_num = base_frame + self.right_offset
+            
+            # Get left frame
+            self.left_cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, left_frame_num))
+            ret_left, left_frame = self.left_cap.read()
+            
+            if ret_left:
+                left_frame = cv2.cvtColor(left_frame, cv2.COLOR_BGR2RGB)
+                left_frame = cv2.resize(left_frame, (400, 300))
+                left_pil = Image.fromarray(left_frame)
+                
+                # Add frame number overlay
+                draw = ImageDraw.Draw(left_pil)
+                draw.text((10, 10), f"Left: {left_frame_num}", fill=(0, 255, 0))
+                
+                left_photo = ImageTk.PhotoImage(image=left_pil)
+                self.left_preview_label.config(image=left_photo, text="")
+                self.left_preview_label.image = left_photo
+            
+            # Get right frame
+            self.right_cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, right_frame_num))
+            ret_right, right_frame = self.right_cap.read()
+            
+            if ret_right:
+                right_frame = cv2.cvtColor(right_frame, cv2.COLOR_BGR2RGB)
+                right_frame = cv2.resize(right_frame, (400, 300))
+                right_pil = Image.fromarray(right_frame)
+                
+                # Add frame number overlay
+                draw = ImageDraw.Draw(right_pil)
+                draw.text((10, 10), f"Right: {right_frame_num}", fill=(0, 255, 0))
+                
+                right_photo = ImageTk.PhotoImage(image=right_pil)
+                self.right_preview_label.config(image=right_photo, text="")
+                self.right_preview_label.image = right_photo
+                
+        except Exception as e:
+            print(f"Preview update error: {e}")
         
     def log_message(self, message):
         """Add a message to the status text box"""
@@ -184,15 +394,19 @@ class VideoProcessorGUI:
             # Open video captures if using videos
             if use_videos:
                 import cv2
-                left_cap = cv2.VideoCapture(left_video_path)
-                right_cap = cv2.VideoCapture(right_video_path)
                 
-                if not left_cap.isOpened():
+                # Reuse captures if already loaded for preview, otherwise open new
+                if not hasattr(self, 'left_cap') or not self.left_cap.isOpened():
+                    self.left_cap = cv2.VideoCapture(left_video_path)
+                if not hasattr(self, 'right_cap') or not self.right_cap.isOpened():
+                    self.right_cap = cv2.VideoCapture(right_video_path)
+                
+                if not self.left_cap.isOpened():
                     raise Exception(f"Failed to open left video: {left_video_path}")
-                if not right_cap.isOpened():
+                if not self.right_cap.isOpened():
                     raise Exception(f"Failed to open right video: {right_video_path}")
                 
-                total_frames = int(left_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                total_frames = int(self.left_cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 self.log_message(f"Left video total frames: {total_frames}")
                 
                 if end_frame is None:
@@ -224,12 +438,15 @@ class VideoProcessorGUI:
             
             for frame_num in range(start_frame, end_frame):
                 if use_videos:
-                    # Read from video files
-                    left_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-                    right_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+                    # Read from video files WITH OFFSETS
+                    left_frame_num = frame_num + self.left_offset
+                    right_frame_num = frame_num + self.right_offset
                     
-                    ret_left, left_img = left_cap.read()
-                    ret_right, right_img = right_cap.read()
+                    self.left_cap.set(cv2.CAP_PROP_POS_FRAMES, left_frame_num)
+                    self.right_cap.set(cv2.CAP_PROP_POS_FRAMES, right_frame_num)
+                    
+                    ret_left, left_img = self.left_cap.read()
+                    ret_right, right_img = self.right_cap.read()
                     
                     if not ret_left or not ret_right:
                         self.log_message(f"Frame {frame_num}: Failed to read from video")
@@ -287,8 +504,8 @@ class VideoProcessorGUI:
             
             # Close video captures if used
             if use_videos:
-                left_cap.release()
-                right_cap.release()
+                self.left_cap.release()
+                self.right_cap.release()
             
             # Enable export and visualize buttons
             self.export_btn.config(state="normal")

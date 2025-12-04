@@ -38,12 +38,55 @@ class FrameSelectorApp:
             return
         
         self.current_frame = 0
+        self.left_offset = 0   # Frame offset for left video
+        self.right_offset = 0  # Frame offset for right video
 
         self.create_widgets()
 
         self.load_frame(0)
     
     def create_widgets(self):
+        # Synchronization control frame (at top)
+        sync_frame = ttk.LabelFrame(self.root, text="Video Synchronization", padding=5)
+        sync_frame.pack(fill="x", padx=10, pady=(10, 5))
+        
+        # Left video offset
+        left_sync_frame = ttk.Frame(sync_frame)
+        left_sync_frame.pack(fill="x", pady=2)
+        ttk.Label(left_sync_frame, text="Left Offset:").pack(side="left", padx=(0, 10))
+        self.left_offset_var = tk.IntVar(value=0)
+        self.left_offset_slider = ttk.Scale(
+            left_sync_frame,
+            from_=-50,
+            to=50,
+            orient="horizontal",
+            variable=self.left_offset_var,
+            command=self.on_sync_change
+        )
+        self.left_offset_slider.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.left_offset_label = ttk.Label(left_sync_frame, text="0", width=5)
+        self.left_offset_label.pack(side="left")
+        ttk.Button(left_sync_frame, text="Reset", command=lambda: self.reset_offset('left')).pack(side="left", padx=(5, 0))
+        
+        # Right video offset
+        right_sync_frame = ttk.Frame(sync_frame)
+        right_sync_frame.pack(fill="x", pady=2)
+        ttk.Label(right_sync_frame, text="Right Offset:").pack(side="left", padx=(0, 10))
+        self.right_offset_var = tk.IntVar(value=0)
+        self.right_offset_slider = ttk.Scale(
+            right_sync_frame,
+            from_=-50,
+            to=50,
+            orient="horizontal",
+            variable=self.right_offset_var,
+            command=self.on_sync_change
+        )
+        self.right_offset_slider.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.right_offset_label = ttk.Label(right_sync_frame, text="0", width=5)
+        self.right_offset_label.pack(side="left")
+        ttk.Button(right_sync_frame, text="Reset", command=lambda: self.reset_offset('right')).pack(side="left", padx=(5, 0))
+        
+        # Main frame control
         control_frame = ttk.Frame(self.root)
         control_frame.pack(fill="x",padx=10, pady=10)
 
@@ -92,6 +135,29 @@ class FrameSelectorApp:
         self.results_text = tk.Text(self.results_frame, height=10, wrap="word")
         self.results_text.pack(fill="x", padx=10, pady=10)
     
+    def reset_offset(self, side):
+        """Reset offset for left or right video"""
+        if side == 'left':
+            self.left_offset_var.set(0)
+            self.left_offset = 0
+            self.left_offset_label.config(text="0")
+        else:
+            self.right_offset_var.set(0)
+            self.right_offset = 0
+            self.right_offset_label.config(text="0")
+        self.load_frame(self.current_frame)
+    
+    def on_sync_change(self, value):
+        """Handle synchronization offset changes"""
+        self.left_offset = int(self.left_offset_var.get())
+        self.right_offset = int(self.right_offset_var.get())
+        
+        self.left_offset_label.config(text=str(self.left_offset))
+        self.right_offset_label.config(text=str(self.right_offset))
+        
+        # Reload current frame with new offsets
+        self.load_frame(self.current_frame)
+    
     def on_slider_change(self, value):
         frame_num = int(float(value))
         if frame_num != self.current_frame:
@@ -101,25 +167,47 @@ class FrameSelectorApp:
             self.visualize_btn["state"] = "disabled"
     
     def load_frame(self, frame_num):
-        frame_id = f"{frame_num:04d}"
+        # Apply offsets to each camera
+        left_frame_num = frame_num + self.left_offset
+        right_frame_num = frame_num + self.right_offset
+        
+        # Clamp to valid range
+        left_frame_num = max(0, min(left_frame_num, self.total_frames - 1))
+        right_frame_num = max(0, min(right_frame_num, self.total_frames - 1))
+        
+        left_frame_id = f"{left_frame_num:04d}"
+        right_frame_id = f"{right_frame_num:04d}"
 
         # Load left image from pre-extracted frames
-        left_img_path = os.path.join(self.left_frames_dir, f"left3_{frame_id}.jpg")
+        left_img_path = os.path.join(self.left_frames_dir, f"left3_{left_frame_id}.jpg")
         if os.path.exists(left_img_path):
             left_img = cv2.imread(left_img_path)
             left_img = cv2.cvtColor(left_img, cv2.COLOR_BGR2RGB)
             left_img = cv2.resize(left_img, (600, 400))
-            left_photo = ImageTk.PhotoImage(image=Image.fromarray(left_img))
+            
+            # Add frame number overlay
+            from PIL import ImageDraw, ImageFont
+            left_pil = Image.fromarray(left_img)
+            draw = ImageDraw.Draw(left_pil)
+            draw.text((10, 10), f"Left: {left_frame_num}", fill=(0, 255, 0))
+            
+            left_photo = ImageTk.PhotoImage(image=left_pil)
             self.left_img_label.config(image=left_photo)
             self.left_img_label.image = left_photo
         
         # Load right image from pre-extracted frames
-        right_img_path = os.path.join(self.right_frames_dir, f"right3_{frame_id}.jpg")
+        right_img_path = os.path.join(self.right_frames_dir, f"right3_{right_frame_id}.jpg")
         if os.path.exists(right_img_path):
             right_img = cv2.imread(right_img_path)
             right_img = cv2.cvtColor(right_img, cv2.COLOR_BGR2RGB)
             right_img = cv2.resize(right_img, (600, 400))
-            right_photo = ImageTk.PhotoImage(image=Image.fromarray(right_img))
+            
+            # Add frame number overlay
+            right_pil = Image.fromarray(right_img)
+            draw = ImageDraw.Draw(right_pil)
+            draw.text((10, 10), f"Right: {right_frame_num}", fill=(0, 255, 0))
+            
+            right_photo = ImageTk.PhotoImage(image=right_pil)
             self.right_img_label.config(image=right_photo)
             self.right_img_label.image = right_photo
     
