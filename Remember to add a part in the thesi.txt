@@ -1,0 +1,2 @@
+Remember to add a part in the thesis talking about how synchronization was handled using the 2 slider approach and how multiple cameras can be used to get over problems like occlusion
+I also need to talk about calibration and the methods we can use to get the camera characteristics

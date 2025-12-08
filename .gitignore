@@ -24,7 +24,6 @@ results/
 data/
 data/volleyball/
 dataset/
-*.pt
 
 # C extensions
 *.so
