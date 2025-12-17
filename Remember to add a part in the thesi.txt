@@ -1,2 +1,19 @@
 Remember to add a part in the thesis talking about how synchronization was handled using the 2 slider approach and how multiple cameras can be used to get over problems like occlusion
 I also need to talk about calibration and the methods we can use to get the camera characteristics
+
+talk about how adding a background improved stereo matching improvements
+
+Quick reasons to mention:
+
+2 = minimum for stereo depth
+More cameras = synchronization nightmare (you already struggled with 2)
+Diminishing returns on accuracy
+Simpler calibration
+Lower cost/complexity
+
+Why it's good future work (multi camera):
+
+3+ cameras = better accuracy through more triangulation points
+Reduces occlusion (if one camera loses sight of ball, others might still see it)
+Shows you understand the system's growth potential
+Logical next step after proving 2-camera system work
