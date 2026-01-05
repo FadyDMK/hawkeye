@@ -1,0 +1,37 @@
+{
+  "train13": {
+    "precision": 0.4967513542685036,
+    "recall": 0.3319579894973743,
+    "mAP50": 0.315264880684448,
+    "mAP50-95": 0.14677008867914737,
+    "model_path": "models\\runs\\detect\\train13\\weights\\best.pt"
+  },
+  "train18": {
+    "precision": 0.8962775518440421,
+    "recall": 0.7292763667349065,
+    "mAP50": 0.7964912817662536,
+    "mAP50-95": 0.4474169013397087,
+    "model_path": "models\\runs\\detect\\train18\\weights\\best.pt"
+  },
+  "train19_fast": {
+    "precision": 0.908248325959518,
+    "recall": 0.7079894973743436,
+    "mAP50": 0.7685824340045972,
+    "mAP50-95": 0.4385982494037223,
+    "model_path": "models\\runs\\detect\\train19_fast\\weights\\best.pt"
+  },
+  "retrain_with_hard_frames2": {
+    "precision": 0.9122421512954816,
+    "recall": 0.7106151537884471,
+    "mAP50": 0.7866412175335581,
+    "mAP50-95": 0.4619969453717247,
+    "model_path": "models\\runs\\detect\\retrain_with_hard_frames2\\weights\\best.pt"
+  },
+  "train_finetune_fast416": {
+    "precision": 0.9107588375584589,
+    "recall": 0.7087396849212303,
+    "mAP50": 0.7721677138160218,
+    "mAP50-95": 0.4374602013454423,
+    "model_path": "models\\runs\\detect\\train_finetune_fast416\\weights\\best.pt"
+  }
+}

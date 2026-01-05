@@ -23,7 +23,7 @@
     "wls_sigma": 1.0,
     "max_ball_height_m": 15.0,
     "focal_length_px": 1600.0,
-    "detection_model_path": "../models/runs/detect/train18/weights/best.pt",
+    "detection_model_path": "../models/runs/detect/retrain_with_hard_frames2/weights/best.pt",
     "detection_conf": 0.5,
     "detection_imgsz": 800,
     "detection_iou": 0.5,
